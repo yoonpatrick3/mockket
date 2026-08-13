@@ -1,0 +1,5 @@
+node_modules/
+.env
+mock-league-data.json
+mock-league.db
+*.log

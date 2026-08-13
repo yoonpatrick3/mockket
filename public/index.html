@@ -1,0 +1,1536 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>MOCKKET</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+  <style>
+    :root{
+      --bg:#0a0b0e; --panel:#111318; --panel2:#171a20; --line:#252934; --text:#f4f6fb;
+      --muted:#9298a8; --green:#62e6a8; --red:#ff7d86; --accent:#b6ff5c; --chip:#20242d;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
+    button,input,select{font:inherit}
+    .shell{max-width:1280px;margin:0 auto;padding:28px 22px 80px}
+    header{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:28px}
+    .brand{font-size:23px;font-weight:900;letter-spacing:-.04em}
+    .brand span{color:var(--accent)}
+    .sub{color:var(--muted);font-size:13px;margin-top:5px}
+    .bank{background:var(--panel);border:1px solid var(--line);padding:12px 16px;border-radius:14px;text-align:right}
+    .bank b{font-size:22px}
+    .bank small{display:block;color:var(--muted)}
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+    .stat,.card,.bet-slip,.history{background:var(--panel);border:1px solid var(--line);border-radius:16px}
+    .stat{padding:16px}.stat label{font-size:12px;color:var(--muted);display:block;margin-bottom:5px}.stat strong{font-size:21px}
+    .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:18px 0}
+    .chips{display:flex;gap:7px;flex-wrap:wrap}
+    .chip{border:1px solid var(--line);background:var(--chip);color:var(--muted);padding:8px 11px;border-radius:999px;cursor:pointer}
+    .chip.active{background:var(--accent);color:#10120c;border-color:var(--accent);font-weight:800}
+    .refresh{margin-left:auto;border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:9px 12px}
+    .live-ok{color:var(--green)}
+    .live-warn{color:#f6c85f}
+    .live-bad{color:var(--red)}
+    .layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px;align-items:start}
+    .market-list{display:grid;gap:11px}
+    .card{padding:16px}
+    .topline{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+    .league{font-size:11px;font-weight:900;letter-spacing:.08em;color:var(--accent)}
+    .volume{font-size:11px;color:var(--muted);margin-left:auto}
+    .match-date{font-size:12px;color:var(--muted);margin:-5px 0 12px}
+    .q{font-size:16px;font-weight:800;line-height:1.3;margin-bottom:13px}
+    .outcomes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .outcome{border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:11px;border-radius:11px;cursor:pointer;text-align:left}
+    .outcome:hover{border-color:#505667}
+    .outcome span{float:right;color:var(--green);font-weight:900}
+    .bet-slip{padding:17px;position:sticky;top:18px}
+    .bet-slip h3{margin:0 0 14px;font-size:15px}
+    .empty{color:var(--muted);font-size:13px;line-height:1.5}
+    .pick-q{font-size:13px;font-weight:700;line-height:1.35;margin-bottom:10px}
+    .pick-row{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;margin:8px 0}
+    .stake{width:100%;background:#0d0f13;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:11px;margin:6px 0 10px}
+    .place{width:100%;border:0;background:var(--accent);color:#10120c;font-weight:900;border-radius:10px;padding:12px;cursor:pointer}
+    .place:disabled{opacity:.45;cursor:not-allowed}
+    .notice{font-size:11px;color:var(--muted);line-height:1.45;margin-top:11px}
+    .section-title{display:flex;justify-content:space-between;align-items:center;margin:32px 0 12px}
+    .section-title h2{font-size:17px;margin:0}
+    .ghost{border:0;background:transparent;color:var(--muted);cursor:pointer}
+    .history{overflow:hidden}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:12px 13px;border-bottom:1px solid var(--line);font-size:12px;text-align:left}
+    th{color:var(--muted);font-weight:600}
+    tr:last-child td{border-bottom:0}
+    .pos{color:var(--green)} .neg{color:var(--red)}
+    .status{padding:4px 7px;background:var(--chip);border-radius:999px;font-size:10px}
+    .banner{display:none;margin:0 0 14px;padding:11px 13px;border:1px solid var(--line);border-radius:12px;color:var(--muted);font-size:12px}
+    .loading{color:var(--muted);padding:24px 0}
+
+    .tabs{display:flex;gap:8px;margin:0 0 18px;border-bottom:1px solid var(--line);padding-bottom:10px}
+    .tab-btn{border:1px solid var(--line);background:var(--panel);color:var(--muted);padding:9px 14px;border-radius:10px;cursor:pointer;font-weight:800}
+    .tab-btn.active{background:var(--accent);border-color:var(--accent);color:#10120c}
+    .tab-panel{display:none}
+    .tab-panel.active{display:block}
+    .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+    .analytics-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:16px}
+    .analytics-card h3{margin:0 0 14px;font-size:14px}
+    .chart-wrap{width:100%;height:280px}
+    #pnlChart{width:100%;height:100%;display:block}
+    .weekly-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .metric-note{font-size:11px;color:var(--muted);margin-top:5px}
+
+    .match-card{cursor:pointer}
+    .match-card:hover{border-color:#505667}
+    .market-detail-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:flex-start;justify-content:center;padding:48px 18px;z-index:1000;overflow:auto}
+    .market-detail-backdrop.open{display:flex}
+    .market-detail{width:min(820px,100%);background:var(--bg);border:1px solid var(--line);border-radius:18px;padding:20px}
+    .market-detail-head{display:flex;gap:12px;align-items:flex-start;margin-bottom:18px}
+    .market-detail-head .title{font-size:21px;font-weight:900;line-height:1.25}
+    .market-detail-head .meta{color:var(--muted);font-size:12px;margin-top:6px}
+    .detail-close{margin-left:auto;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px 11px;cursor:pointer}
+    .market-section{margin-top:20px}
+    .market-section h3{font-size:12px;letter-spacing:.08em;color:var(--muted);margin:0 0 9px}
+    .market-row{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:13px;margin-bottom:9px}
+    .market-row-title{font-size:13px;font-weight:800;margin-bottom:9px}
+    .detail-outcomes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .detail-outcome{border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:11px;border-radius:10px;cursor:pointer;text-align:left}
+    .detail-outcome:hover{border-color:#505667}
+    .detail-outcome span{float:right;color:var(--green);font-weight:900}
+    .view-markets{font-size:11px;color:var(--muted);margin-top:11px}
+
+
+
+    .auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .auth-card{width:min(420px,100%);background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px}
+    .auth-card h1{margin:0;font-size:25px}.auth-card .sub{margin-bottom:20px}
+    .auth-switch{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+    .auth-switch button{border:1px solid var(--line);background:var(--panel2);color:var(--muted);padding:10px;border-radius:10px;cursor:pointer}
+    .auth-switch button.active{background:var(--accent);color:#10120c;border-color:var(--accent);font-weight:800}
+    .auth-field{display:block;margin:12px 0;color:var(--muted);font-size:12px}
+    .auth-field input{display:block;width:100%;margin-top:6px;background:#0d0f13;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:11px}
+    .auth-submit{width:100%;border:0;background:var(--accent);color:#10120c;font-weight:900;border-radius:10px;padding:12px;cursor:pointer;margin-top:4px}
+    .auth-error{min-height:18px;color:var(--red);font-size:12px;margin-top:10px}
+    .auth-help{margin-top:10px;text-align:center}
+    .auth-help button{border:0;background:transparent;color:var(--muted);font-size:12px;cursor:pointer;text-decoration:underline}
+    .auth-reset-only{display:none}
+
+    .header-actions{display:flex;gap:10px;align-items:center}
+    .account-box{background:var(--panel);border:1px solid var(--line);padding:10px 13px;border-radius:14px;text-align:right}
+    .account-box b{display:block;font-size:13px}.account-box button{border:0;background:transparent;color:var(--muted);font-size:11px;padding:0;cursor:pointer}
+    .leaderboard-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+    .leader-me{background:rgba(182,255,92,.06)}
+
+    @media(max-width:860px){.layout{grid-template-columns:1fr}.bet-slip{position:static}.stats,.stats-grid{grid-template-columns:repeat(2,1fr)}.weekly-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div id="authScreen" class="auth-screen">
+  <div class="auth-card">
+    <h1>MOCK<span style="color:var(--accent)">KET</span></h1>
+    <div class="sub"><strong>Put your money where your mouth isn't.</strong><br>Live esports markets. Fake money. Real bragging rights.</div>
+    <div class="auth-switch">
+      <button id="authLoginTab" class="active" type="button">Login</button>
+      <button id="authRegisterTab" type="button">Create account</button>
+    </div>
+    <label class="auth-field">Username
+      <input id="authUsername" autocomplete="username" maxlength="20" />
+    </label>
+    <label id="authPasswordLabel" class="auth-field">Password
+      <input id="authPassword" type="password" autocomplete="current-password" />
+    </label>
+
+    <label id="authRecoveryCodeLabel" class="auth-field auth-reset-only">Recovery code
+      <input id="authRecoveryCode" type="password" autocomplete="off" />
+    </label>
+
+    <label id="authNewPasswordLabel" class="auth-field auth-reset-only">New password
+      <input id="authNewPassword" type="password" autocomplete="new-password" />
+    </label>
+
+    <button id="authSubmit" class="auth-submit" type="button">Login</button>
+    <div id="authError" class="auth-error"></div>
+
+    <div class="auth-help">
+      <button id="forgotPasswordBtn" type="button">Forgot password?</button>
+      <button id="backToLoginBtn" type="button" style="display:none">Back to login</button>
+    </div>
+  </div>
+</div>
+
+<div id="appShell" class="shell" style="display:none">
+  <header>
+    <div><div class="brand">MOCK<span>KET</span></div><div class="sub"><strong>Put your money where your mouth isn't.</strong><br>Live esports markets. Fake money. Real bragging rights.</div></div>
+    <div class="header-actions">
+      <div class="account-box">
+        <b id="usernameDisplay">—</b>
+        <button id="importLegacyBtn" type="button" style="display:none">Import old bets</button>
+        <button id="logoutBtn" type="button">Log out</button>
+      </div>
+      <div class="bank"><small>AVAILABLE</small><b id="bankroll">$1,000.00</b></div>
+    </div>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><label>STARTING BALANCE</label><strong>$1,000.00</strong></div>
+    <div class="stat"><label>REALIZED P/L</label><strong id="realized">$0.00</strong></div>
+    <div class="stat"><label>OPEN PICKS</label><strong id="openCount">0</strong></div>
+    <div class="stat"><label>SIM ROI</label><strong id="roi">0.0%</strong></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="betting">Betting</button>
+    <button class="tab-btn" data-tab="stats">Stats</button>
+    <button class="tab-btn" data-tab="leaderboard">Leaderboard</button>
+  </div>
+
+  <section id="tab-betting" class="tab-panel active">
+    <div id="banner" class="banner"></div>
+
+    <div class="toolbar">
+      <div class="chips"><button class="chip active game-chip" data-game="lol">League of Legends</button><button class="chip game-chip" data-game="valorant">Valorant</button></div>
+      <div class="refresh" id="liveStatus">● CONNECTING…</div>
+    </div>
+
+    <div class="layout">
+      <main>
+        <div class="market-list" id="markets"><div class="loading">Loading live League of Legends markets…</div></div>
+      </main>
+
+      <aside class="bet-slip">
+        <h3>SIMULATED PICK</h3>
+        <div id="slip" class="empty">Pick a matchup outcome to add it here. No real orders can be placed from this app.</div>
+      </aside>
+    </div>
+  </section>
+
+  <section id="tab-stats" class="tab-panel">
+    <div class="stats-grid">
+      <div class="stat"><label>TOTAL BETS</label><strong id="statTotalBets">0</strong></div>
+      <div class="stat"><label>RECORD</label><strong id="statRecord">0-0</strong><div class="metric-note" id="statPending">0 pending</div></div>
+      <div class="stat"><label>WIN RATE</label><strong id="statWinRate">—</strong></div>
+      <div class="stat"><label>NET P/L</label><strong id="statNet">+$0.00</strong></div>
+      <div class="stat"><label>TOTAL STAKED</label><strong id="statStaked">$0.00</strong></div>
+      <div class="stat"><label>ROI</label><strong id="statRoi">—</strong></div>
+      <div class="stat"><label>AVG ENTRY</label><strong id="statAvgEntry">—</strong></div>
+      <div class="stat"><label>BIGGEST WIN</label><strong id="statBiggestWin">—</strong></div>
+    </div>
+
+    <div class="analytics-card">
+      <h3>CUMULATIVE REALIZED P/L</h3>
+      <div class="chart-wrap"><canvas id="pnlChart"></canvas></div>
+      <div class="metric-note">Starts at $0 and updates automatically whenever a simulated bet resolves.</div>
+    </div>
+
+    <div class="weekly-grid">
+      <div class="analytics-card">
+        <h3>WEEKLY P/L</h3>
+        <div class="history">
+          <table>
+            <thead><tr><th>Week</th><th>Bets</th><th>Record</th><th>P/L</th></tr></thead>
+            <tbody id="weeklyStats"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="analytics-card">
+        <h3>BY GAME / LEAGUE</h3>
+        <div class="history">
+          <table>
+            <thead><tr><th>League</th><th>Bets</th><th>Record</th><th>P/L</th></tr></thead>
+            <tbody id="leagueStats"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">
+      <h2>All simulated bets</h2>
+      <button class="ghost" id="reset">Reset simulator</button>
+    </div>
+    <div class="history">
+      <table>
+        <thead><tr><th>Placed</th><th>Match</th><th>Pick</th><th>Stake</th><th>Entry</th><th>Potential</th><th>Status</th><th>P/L</th></tr></thead>
+        <tbody id="history"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="tab-leaderboard" class="tab-panel">
+    <div class="section-title"><h2>Leaderboard</h2></div>
+    <div class="leaderboard-card">
+      <table>
+        <thead><tr><th>#</th><th>Player</th><th>P/L</th><th>ROI</th><th>Record</th><th>Open</th><th>Bankroll</th></tr></thead>
+        <tbody id="leaderboardBody"><tr><td colspan="7" style="color:var(--muted)">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<div id="marketDetailBackdrop" class="market-detail-backdrop" aria-hidden="true">
+  <div class="market-detail" role="dialog" aria-modal="true" aria-labelledby="marketDetailTitle">
+    <div class="market-detail-head">
+      <div>
+        <div id="marketDetailTitle" class="title"></div>
+        <div id="marketDetailMeta" class="meta"></div>
+      </div>
+      <button id="marketDetailClose" class="detail-close" type="button">Close</button>
+    </div>
+    <div id="marketDetailBody"></div>
+  </div>
+</div>
+
+<script>
+const START = 1000;
+let markets = [];
+const GAME_TAB_KEY = "mockketCurrentGame";
+const LEGACY_GAME_TAB_KEY = "mockLeagueCurrentGame";
+let currentGame = (localStorage.getItem(GAME_TAB_KEY) || localStorage.getItem(LEGACY_GAME_TAB_KEY)) === "valorant"
+  ? "valorant"
+  : "lol";
+let selected = null;
+let stakeDraft = 25;
+let detailMarketId = null;
+let state = {user:null, bankroll:0, bets:[]};
+let authMode = "login";
+
+let marketSocket = null;
+let marketSocketHeartbeat = null;
+let marketSocketReconnect = null;
+let socketGeneration = 0;
+const tokenToMarket = new Map();
+
+async function apiJson(url, options={}){
+  const response=await fetch(url,{
+    ...options,
+    headers:{"Content-Type":"application/json",...(options.headers||{})}
+  });
+  let data={};
+  try{ data=await response.json(); }catch{}
+  if(!response.ok){
+    const err=new Error(data.error || `Request failed (${response.status})`);
+    err.status=response.status;
+    throw err;
+  }
+  return data;
+}
+
+function applyAccountState(data){
+  state={
+    user:data.user || state.user || null,
+    bankroll:Number(data.bankroll || 0),
+    bets:Array.isArray(data.bets) ? data.bets : []
+  };
+  document.getElementById("usernameDisplay").textContent=state.user?.username || "—";
+  renderStats();
+  renderHistory();
+  renderAnalytics();
+  updateLegacyImportButton();
+}
+
+function save(){ renderStats(); renderHistory(); renderAnalytics(); }
+function fmt(n){ return Number(n).toLocaleString(undefined,{style:"currency",currency:"USD",minimumFractionDigits:2,maximumFractionDigits:2}); }
+function money(n){ return Number(n).toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:0}); }
+function matchDate(iso){
+  if(!iso) return "Time TBD";
+  const d = new Date(iso);
+  if(Number.isNaN(d.getTime())) return "Time TBD";
+  return new Intl.DateTimeFormat(undefined,{
+    weekday:"short", month:"short", day:"numeric",
+    hour:"numeric", minute:"2-digit"
+  }).format(d);
+}
+function decimalOdds(p){
+  p=Number(p);
+  if(!Number.isFinite(p) || p<=0) return "—";
+  return `${(1/p).toFixed(2)}x`;
+}
+function isLiveMatch(m){
+  if(!m?.startTime) return false;
+  const start=new Date(m.startTime).getTime();
+  return Number.isFinite(start) && start < Date.now() && m.active && !m.closed;
+}
+function esc(s=""){ return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c])); }
+
+function renderStats(){
+  const realized = state.bets.reduce((a,b)=>a+(b.pnl || 0),0);
+  const open = state.bets.filter(b=>b.status==="OPEN").length;
+  document.getElementById("bankroll").textContent = fmt(state.bankroll);
+  document.getElementById("realized").textContent = `${realized>=0?"+":""}${fmt(realized)}`;
+  document.getElementById("realized").className = realized>=0?"pos":"neg";
+  document.getElementById("openCount").textContent = open;
+  document.getElementById("roi").textContent = `${(realized/START*100).toFixed(1)}%`;
+}
+
+
+function currentGameName(){ return currentGame==="valorant" ? "Valorant" : "League of Legends"; }
+
+function normalizeTeamLabel(value){
+  return String(value||"")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu," ")
+    .trim()
+    .replace(/\s+/g," ");
+}
+
+function isTeamVsTeamMarket(market,parent){
+  const outcomes=(market?.outcomes||[]).slice(0,2).map(normalizeTeamLabel).sort();
+  const teams=[
+    normalizeTeamLabel(parent?.teamA),
+    normalizeTeamLabel(parent?.teamB)
+  ].sort();
+
+  return Boolean(
+    outcomes.length===2 &&
+    teams[0] &&
+    teams[1] &&
+    outcomes[0]===teams[0] &&
+    outcomes[1]===teams[1]
+  );
+}
+
+function renderMarkets(){
+  const list = markets.filter(m => {
+    if(!m.active || m.closed) return false;
+
+    const matchMarket=m.eventMarkets?.match || m;
+    return isTeamVsTeamMarket(matchMarket,m) &&
+      matchMarket.active !== false &&
+      !matchMarket.closed;
+  });
+  const el = document.getElementById("markets");
+
+  if(!list.length){
+    el.innerHTML = `<div class="loading">No live ${esc(currentGameName())} markets found right now.</div>`;
+    return;
+  }
+
+  el.innerHTML = list.map(m => {
+    const candidate=m.eventMarkets?.match || m;
+    const matchMarket=isTeamVsTeamMarket(candidate,m) ? candidate : null;
+    if(!matchMarket) return "";
+
+    const outcomes=(matchMarket.outcomes||[]).slice(0,2);
+    const prices=(matchMarket.prices||m.prices||[]).slice(0,2);
+
+    const matchButtons=outcomes.map((outcome,idx)=>{
+      const p=Number(prices[idx]);
+      if(!Number.isFinite(p)) return "";
+
+      return `<button
+        class="outcome front-match-outcome"
+        type="button"
+        data-parent-id="${esc(String(m.id))}"
+        data-submarket-id="${esc(String(matchMarket.id || m.id))}"
+        data-outcome-index="${idx}">
+        ${esc(String(outcome))}
+        <span>${Math.round(p*100)}% · ${decimalOdds(p)}</span>
+      </button>`;
+    }).join("");
+
+    return `
+      <article class="card match-card" data-match-id="${esc(String(m.id))}">
+        <div class="topline">
+          <div class="league">${esc(m.competition || currentGameName())}</div>
+          <div class="volume">${m.volume?money(m.volume)+" vol":""}</div>
+        </div>
+
+        <div class="q">${esc(m.teamA || m.outcomes[0])} vs ${esc(m.teamB || m.outcomes[1])}${m.bestOf ? ` (${esc(m.bestOf)})` : ""}</div>
+
+        <div class="match-date">${isLiveMatch(m) ? "● LIVE · " : ""}${esc(matchDate(m.startTime))}</div>
+
+        <div class="outcomes">
+          ${matchButtons}
+        </div>
+
+        <div class="view-markets">
+          More markets · ${currentGame==="valorant" ? "map winners + total maps" : "game winners + total games"} →
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  el.querySelectorAll(".front-match-outcome").forEach(btn=>{
+    btn.addEventListener("click",e=>{
+      e.stopPropagation();
+      chooseFrontMatchOutcome(
+        btn.dataset.parentId,
+        btn.dataset.submarketId,
+        Number(btn.dataset.outcomeIndex)
+      );
+    });
+  });
+
+  el.querySelectorAll(".match-card").forEach(card=>{
+    card.addEventListener("click",e=>{
+      if(e.target.closest(".front-match-outcome")) return;
+      openMarketDetail(card.dataset.matchId);
+    });
+  });
+}
+
+function chooseFrontMatchOutcome(parentId,submarketId,idx){
+  const parent=markets.find(
+    x=>String(x.id)===String(parentId)
+  );
+  if(!parent) return;
+
+  const candidate =
+    findSubMarket(parent,submarketId) ||
+    parent.eventMarkets?.match ||
+    parent;
+
+  if(!isTeamVsTeamMarket(candidate,parent)) return;
+
+  const matchMarket=candidate;
+  const p=Number(matchMarket.prices?.[idx]);
+  if(!Number.isFinite(p)) return;
+
+  const bettingMarket={
+    ...parent,
+    id:String(matchMarket.id || parent.id),
+    question:matchMarket.question || parent.question,
+    outcomes:matchMarket.outcomes || parent.outcomes,
+    prices:matchMarket.prices || parent.prices,
+    tokenIds:matchMarket.tokenIds || parent.tokenIds,
+    conditionId:matchMarket.conditionId || parent.conditionId || "",
+    active:matchMarket.active ?? parent.active,
+    closed:matchMarket.closed ?? parent.closed,
+    marketLabel:"Match winner"
+  };
+
+  selected={
+    market:bettingMarket,
+    idx,
+    outcome:bettingMarket.outcomes[idx],
+    price:p
+  };
+
+  stakeDraft=25;
+  renderSlip();
+}
+function marketDisplayTitle(sm,fallback){
+  if(sm?.bucket==="game" && sm.gameNumber){
+    const unit=sm.unitLabel || (currentGame==="valorant" ? "Map" : "Game");
+    return `${unit} ${sm.gameNumber} winner`;
+  }
+
+  if(sm?.bucket==="total"){
+    const line=Number(sm.line);
+    if(Number.isFinite(line)){
+      return currentGame==="valorant"
+        ? `Total maps · O/U ${line}`
+        : `Total games · O/U ${line}`;
+    }
+    return currentGame==="valorant" ? "Total maps" : "Total games";
+  }
+
+  return fallback || sm?.question || "Market";
+}
+
+function renderDetailMarketRow(sm,title){
+  if(!sm) return "";
+
+  const buttons=(sm.outcomes||[]).slice(0,2).map((outcome,idx)=>{
+    const p=Number(sm.prices?.[idx]);
+    if(!Number.isFinite(p)) return "";
+
+    return `<button class="detail-outcome" type="button"
+      data-submarket-id="${esc(String(sm.id))}"
+      data-outcome-index="${idx}">
+      ${esc(String(outcome))}
+      <span>${Math.round(p*100)}% · ${decimalOdds(p)}</span>
+    </button>`;
+  }).join("");
+
+  if(!buttons) return "";
+
+  return `<div class="market-row">
+    <div class="market-row-title">${esc(title)}</div>
+    <div class="detail-outcomes">${buttons}</div>
+  </div>`;
+}
+
+function renderMarketDetail(){
+  if(!detailMarketId) return;
+
+  const m=markets.find(x=>String(x.id)===String(detailMarketId));
+  if(!m){
+    closeMarketDetail();
+    return;
+  }
+
+  document.getElementById("marketDetailTitle").textContent =
+    `${m.teamA} vs ${m.teamB}${m.bestOf ? ` (${m.bestOf})` : ""}`;
+
+  document.getElementById("marketDetailMeta").textContent =
+    `${m.competition || currentGameName()} · ${isLiveMatch(m) ? "LIVE · " : ""}${matchDate(m.startTime)}`;
+
+  const em=m.eventMarkets || {};
+  const sections=[];
+
+  const matchCandidate=em.match || m;
+  const matchHtml=isTeamVsTeamMarket(matchCandidate,m)
+    ? renderDetailMarketRow(matchCandidate,"Match winner")
+    : "";
+
+  if(matchHtml){
+    sections.push(`<section class="market-section"><h3>MATCH</h3>${matchHtml}</section>`);
+  }
+
+  const games=(em.games||[])
+    .map(sm=>renderDetailMarketRow(sm,marketDisplayTitle(sm)))
+    .filter(Boolean)
+    .join("");
+
+  if(games){
+    const heading=currentGame==="valorant" ? "MAP WINNERS" : "GAME WINNERS";
+    sections.push(`<section class="market-section"><h3>${heading}</h3>${games}</section>`);
+  }
+
+  const totals=(em.totals||[])
+    .map(sm=>renderDetailMarketRow(sm,marketDisplayTitle(sm,"Total maps")))
+    .filter(Boolean)
+    .join("");
+
+  if(totals){
+    sections.push(`<section class="market-section"><h3>TOTAL MAPS</h3>${totals}</section>`);
+  }
+
+  if(!games && !totals){
+    sections.push(`<div class="empty">Polymarket currently only exposes the match-winner market for this event.</div>`);
+  }
+
+  const body=document.getElementById("marketDetailBody");
+  body.innerHTML=sections.join("");
+
+  body.querySelectorAll(".detail-outcome").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      chooseDetailOutcome(btn.dataset.submarketId,Number(btn.dataset.outcomeIndex));
+    });
+  });
+}
+
+function openMarketDetail(id){
+  detailMarketId=String(id);
+  const backdrop=document.getElementById("marketDetailBackdrop");
+  backdrop.classList.add("open");
+  backdrop.setAttribute("aria-hidden","false");
+  renderMarketDetail();
+}
+
+function closeMarketDetail(){
+  detailMarketId=null;
+  const backdrop=document.getElementById("marketDetailBackdrop");
+  backdrop.classList.remove("open");
+  backdrop.setAttribute("aria-hidden","true");
+}
+
+function findSubMarket(parent,submarketId){
+  const em=parent?.eventMarkets || {};
+  const all=[
+    em.match,
+    ...(em.games||[]),
+    ...(em.totals||[])
+  ].filter(Boolean);
+
+  return all.find(x=>String(x.id)===String(submarketId)) || null;
+}
+
+function chooseDetailOutcome(submarketId,idx){
+  const parent=markets.find(x=>String(x.id)===String(detailMarketId));
+  if(!parent) return;
+
+  let sm=findSubMarket(parent,submarketId);
+
+  if(!sm && String(parent.id)===String(submarketId)){
+    sm={
+      id:parent.id,
+      question:parent.question,
+      outcomes:parent.outcomes,
+      prices:parent.prices,
+      tokenIds:parent.tokenIds,
+      conditionId:parent.conditionId,
+      active:parent.active,
+      closed:parent.closed
+    };
+  }
+
+  if(!sm) return;
+
+  const p=Number(sm.prices?.[idx]);
+  if(!Number.isFinite(p)) return;
+
+  const bettingMarket={
+    ...parent,
+    id:String(sm.id),
+    question:sm.question || parent.question,
+    outcomes:sm.outcomes,
+    prices:sm.prices,
+    tokenIds:sm.tokenIds,
+    conditionId:sm.conditionId,
+    active:sm.active,
+    closed:sm.closed,
+    marketLabel:marketDisplayTitle(sm,"Match winner")
+  };
+
+  selected={
+    market:bettingMarket,
+    idx,
+    outcome:sm.outcomes[idx],
+    price:p
+  };
+
+  stakeDraft = 25;
+  renderSlip();
+  closeMarketDetail();
+}
+window.pick = (id, idx) => {
+  const m = markets.find(x=>x.id===id);
+  if(!m) return;
+  selected = {market:m, idx, outcome:m.outcomes[idx], price:Number(m.prices[idx])};
+  stakeDraft = 25;
+  renderSlip();
+};
+
+function renderSlip(){
+  const el=document.getElementById("slip");
+  if(!selected){ el.className="empty"; el.textContent="Pick a matchup outcome to add it here. No real orders can be placed from this app."; return; }
+  const p=Math.max(.01,Math.min(.99,selected.price));
+  el.className="";
+  el.innerHTML = `
+    <div class="pick-q">${esc(`${selected.market.teamA} vs ${selected.market.teamB}`)}</div>
+    <div class="pick-row"><span>Market</span><b>${esc(selected.market.marketLabel || "Match winner")}</b></div>
+    <div class="pick-row"><span>Pick</span><b>${esc(selected.outcome)}</b></div>
+    <div class="pick-row"><span>Market probability</span><b id="marketProbability">${Math.round(p*100)}%</b></div>
+    <input id="stake" class="stake" type="number" min="1" step="1" value="${stakeDraft}" placeholder="Fake stake ($)" oninput="updatePotential()"/>
+    <div class="pick-row"><span>Potential return</span><b id="potential">${fmt(stakeDraft/p)}</b></div>
+    <button class="place" onclick="placeFakeBet()">Place simulated pick</button>
+    <div class="notice">Uses simulated dollars only. No real-money wallet, deposit flow, or order-placement API is connected.</div>`;
+}
+window.updatePotential = () => {
+  if(!selected) return;
+
+  const input=document.getElementById("stake");
+  const raw=input?.value ?? "";
+  const stake=Number(raw||0);
+
+  // Preserve exactly what the user is editing so live-price re-renders
+  // don't reset the stake back to the default.
+  if(raw !== "" && Number.isFinite(stake)){
+    stakeDraft=stake;
+  }
+
+  const p=Math.max(.01,Math.min(.99,selected.price));
+  document.getElementById("potential").textContent=fmt(stake/p);
+};
+
+function updateSelectedSlipPrice(){
+  if(!selected) return;
+
+  const p=Math.max(.01,Math.min(.99,Number(selected.price)));
+
+  const probabilityEl=document.getElementById("marketProbability");
+  if(probabilityEl){
+    probabilityEl.textContent=`${Math.round(p*100)}%`;
+  }
+
+  // Read the live input value without replacing the input element.
+  // This preserves focus, selection, and the user's partially typed stake.
+  const stakeInput=document.getElementById("stake");
+  const raw=stakeInput?.value ?? String(stakeDraft);
+  const stake=Number(raw||0);
+
+  if(raw !== "" && Number.isFinite(stake)){
+    stakeDraft=stake;
+  }
+
+  const potentialEl=document.getElementById("potential");
+  if(potentialEl){
+    potentialEl.textContent=fmt(stake/p);
+  }
+}
+window.placeFakeBet = async () => {
+  const stake=Number(document.getElementById("stake")?.value||0);
+  if(!selected || !Number.isFinite(stake) || stake<=0) return;
+  if(stake>state.bankroll){ alert("Not enough simulated balance."); return; }
+
+  const p=Math.max(.01,Math.min(.99,selected.price));
+  const button=document.querySelector("#slip .place");
+  if(button) button.disabled=true;
+
+  try{
+    const data=await apiJson("/api/bets",{
+      method:"POST",
+      body:JSON.stringify({
+        marketId:selected.market.id,
+        conditionId:selected.market.conditionId || "",
+        game:selected.market.game || currentGameName(),
+        gameKey:selected.market.gameKey || currentGame,
+        competition:selected.market.competition || currentGameName(),
+        question:selected.market.question,
+        matchStart:selected.market.startTime || null,
+        outcome:selected.outcome,
+        outcomeIndex:selected.idx,
+        tokenIds:Array.isArray(selected.market.tokenIds) ? selected.market.tokenIds.slice(0,2) : [],
+        entryPrice:p,
+        stake
+      })
+    });
+
+    applyAccountState(data);
+    selected=null;
+    stakeDraft=25;
+    renderSlip();
+  }catch(e){
+    alert(e.message);
+    if(button) button.disabled=false;
+  }
+};
+
+function renderHistory(){
+  const el=document.getElementById("history");
+  if(!state.bets.length){
+    el.innerHTML=`<tr><td colspan="8" style="color:var(--muted)">No simulated bets yet.</td></tr>`;
+    return;
+  }
+
+  el.innerHTML=state.bets.map(b=>`<tr>
+    <td>${esc(new Date(b.placedAt).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}))}</td>
+    <td>${esc(b.question)}</td>
+    <td>${esc(b.outcome)}</td>
+    <td>${fmt(b.stake)}</td>
+    <td>${Math.round(b.entryPrice*100)}%</td>
+    <td>${fmt(b.potential)}</td>
+    <td><span class="status">${b.status}</span></td>
+    <td class="${b.pnl>0?"pos":b.pnl<0?"neg":""}">${b.status==="OPEN"?"—":`${b.pnl>=0?"+":""}${fmt(b.pnl)}`}</td>
+  </tr>`).join("");
+}
+
+function startOfWeek(date){
+  const d=new Date(date);
+  const day=d.getDay();
+  const diff=(day+6)%7;
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate()-diff);
+  return d;
+}
+
+function drawPnlChart(){
+  const canvas=document.getElementById("pnlChart");
+  if(!canvas) return;
+
+  const rect=canvas.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=Math.max(1,Math.floor(rect.width*dpr));
+  canvas.height=Math.max(1,Math.floor(rect.height*dpr));
+
+  const ctx=canvas.getContext("2d");
+  ctx.scale(dpr,dpr);
+
+  const w=rect.width, h=rect.height;
+  ctx.clearRect(0,0,w,h);
+
+  const resolved=state.bets
+    .filter(b=>b.status!=="OPEN")
+    .slice()
+    .sort((a,b)=>new Date(a.resolvedAt||a.placedAt)-new Date(b.resolvedAt||b.placedAt));
+
+  const points=[{label:"Start",value:0}];
+  let cumulative=0;
+  resolved.forEach((b,i)=>{
+    cumulative+=Number(b.pnl||0);
+    points.push({label:i+1,value:cumulative});
+  });
+
+  const values=points.map(p=>p.value);
+  let min=Math.min(0,...values), max=Math.max(0,...values);
+  if(min===max){ min-=10; max+=10; }
+  const pad={l:52,r:18,t:16,b:34};
+  const iw=w-pad.l-pad.r, ih=h-pad.t-pad.b;
+
+  const x=i=>pad.l+(points.length===1?0:(i/(points.length-1))*iw);
+  const y=v=>pad.t+((max-v)/(max-min))*ih;
+
+  ctx.strokeStyle="#252934";
+  ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(pad.l,y(0)); ctx.lineTo(w-pad.r,y(0)); ctx.stroke();
+
+  ctx.fillStyle="#9298a8";
+  ctx.font="11px system-ui";
+  ctx.textAlign="right";
+  ctx.fillText(fmt(max),pad.l-8,pad.t+5);
+  ctx.fillText(fmt(min),pad.l-8,h-pad.b);
+  ctx.fillText("$0",pad.l-8,y(0)+4);
+
+  ctx.strokeStyle="#b6ff5c";
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  points.forEach((p,i)=>{
+    if(i===0) ctx.moveTo(x(i),y(p.value));
+    else ctx.lineTo(x(i),y(p.value));
+  });
+  ctx.stroke();
+
+  ctx.fillStyle="#b6ff5c";
+  points.forEach((p,i)=>{
+    ctx.beginPath(); ctx.arc(x(i),y(p.value),3,0,Math.PI*2); ctx.fill();
+  });
+
+  ctx.fillStyle="#9298a8";
+  ctx.textAlign="center";
+  ctx.fillText("Start",pad.l,h-10);
+  if(points.length>1) ctx.fillText(`${resolved.length} resolved`,w-pad.r,h-10);
+}
+
+function renderAnalytics(){
+  const bets=state.bets;
+  const resolved=bets.filter(b=>b.status!=="OPEN");
+  const wins=resolved.filter(b=>b.status==="WON").length;
+  const losses=resolved.filter(b=>b.status==="LOST").length;
+  const pending=bets.filter(b=>b.status==="OPEN").length;
+  const net=resolved.reduce((s,b)=>s+Number(b.pnl||0),0);
+  const totalStaked=bets.reduce((s,b)=>s+Number(b.stake||0),0);
+  const resolvedStaked=resolved.reduce((s,b)=>s+Number(b.stake||0),0);
+  const avgEntry=bets.length?bets.reduce((s,b)=>s+Number(b.entryPrice||0),0)/bets.length:null;
+  const biggestWin=resolved.filter(b=>b.pnl>0).reduce((m,b)=>Math.max(m,Number(b.pnl)),0);
+
+  document.getElementById("statTotalBets").textContent=bets.length;
+  document.getElementById("statRecord").textContent=`${wins}-${losses}`;
+  document.getElementById("statPending").textContent=`${pending} pending`;
+  document.getElementById("statWinRate").textContent=(wins+losses)?`${(wins/(wins+losses)*100).toFixed(1)}%`:"—";
+  document.getElementById("statNet").textContent=`${net>=0?"+":""}${fmt(net)}`;
+  document.getElementById("statNet").className=net>=0?"pos":"neg";
+  document.getElementById("statStaked").textContent=fmt(totalStaked);
+  document.getElementById("statRoi").textContent=resolvedStaked?`${(net/resolvedStaked*100).toFixed(1)}%`:"—";
+  document.getElementById("statAvgEntry").textContent=avgEntry?`${Math.round(avgEntry*100)}% · ${(1/avgEntry).toFixed(2)}x`:"—";
+  document.getElementById("statBiggestWin").textContent=biggestWin?`+${fmt(biggestWin)}`:"—";
+
+  const weekly=new Map();
+  bets.forEach(b=>{
+    const d=startOfWeek(b.matchStart||b.placedAt);
+    const key=d.toISOString().slice(0,10);
+    if(!weekly.has(key)) weekly.set(key,{date:d,bets:0,w:0,l:0,p:0,pnl:0});
+    const x=weekly.get(key);
+    x.bets++;
+    if(b.status==="WON") x.w++;
+    else if(b.status==="LOST") x.l++;
+    else x.p++;
+    x.pnl+=Number(b.pnl||0);
+  });
+  const weeklyRows=[...weekly.values()].sort((a,b)=>b.date-a.date);
+  document.getElementById("weeklyStats").innerHTML=weeklyRows.length
+    ? weeklyRows.map(x=>`<tr>
+        <td>${esc(x.date.toLocaleDateString(undefined,{month:"short",day:"numeric"}))}</td>
+        <td>${x.bets}</td><td>${x.w}-${x.l}${x.p?` (${x.p}p)`:""}</td>
+        <td class="${x.pnl>0?"pos":x.pnl<0?"neg":""}">${x.pnl>=0?"+":""}${fmt(x.pnl)}</td>
+      </tr>`).join("")
+    : `<tr><td colspan="4" style="color:var(--muted)">No bets yet.</td></tr>`;
+
+  const leagues=new Map();
+  bets.forEach(b=>{
+    const raw=String(b.competition||"LoL").trim();
+    const major=(raw.match(/^(LCK|LPL|LEC|LCS)\b/i)||[])[1] || raw;
+    if(!leagues.has(major)) leagues.set(major,{bets:0,w:0,l:0,p:0,pnl:0});
+    const x=leagues.get(major); x.bets++;
+    if(b.status==="WON") x.w++; else if(b.status==="LOST") x.l++; else x.p++;
+    x.pnl+=Number(b.pnl||0);
+  });
+  const leagueRows=[...leagues.entries()].sort((a,b)=>b[1].bets-a[1].bets);
+  document.getElementById("leagueStats").innerHTML=leagueRows.length
+    ? leagueRows.map(([name,x])=>`<tr>
+        <td>${esc(name)}</td><td>${x.bets}</td>
+        <td>${x.w}-${x.l}${x.p?` (${x.p}p)`:""}</td>
+        <td class="${x.pnl>0?"pos":x.pnl<0?"neg":""}">${x.pnl>=0?"+":""}${fmt(x.pnl)}</td>
+      </tr>`).join("")
+    : `<tr><td colspan="4" style="color:var(--muted)">No bets yet.</td></tr>`;
+
+  requestAnimationFrame(drawPnlChart);
+}
+
+
+function setLiveStatus(text, kind="warn"){
+  const el=document.getElementById("liveStatus");
+  if(!el) return;
+  el.textContent=text;
+  el.classList.remove("live-ok","live-warn","live-bad");
+  el.classList.add(kind==="ok"?"live-ok":kind==="bad"?"live-bad":"live-warn");
+}
+
+function closeMarketSocket(){
+  socketGeneration++;
+
+  if(marketSocketReconnect){
+    clearTimeout(marketSocketReconnect);
+    marketSocketReconnect=null;
+  }
+
+  if(marketSocketHeartbeat){
+    clearInterval(marketSocketHeartbeat);
+    marketSocketHeartbeat=null;
+  }
+
+  if(marketSocket){
+    try{
+      marketSocket.onopen=null;
+      marketSocket.onmessage=null;
+      marketSocket.onerror=null;
+      marketSocket.onclose=null;
+      marketSocket.close();
+    }catch{}
+    marketSocket=null;
+  }
+
+  tokenToMarket.clear();
+}
+
+function bestMidpointFromBook(msg){
+  const bids=Array.isArray(msg.bids) ? msg.bids : [];
+  const asks=Array.isArray(msg.asks) ? msg.asks : [];
+
+  const bestBid=bids.reduce((best,row)=>{
+    const p=Number(row?.price);
+    return Number.isFinite(p) ? Math.max(best,p) : best;
+  },-Infinity);
+
+  const bestAsk=asks.reduce((best,row)=>{
+    const p=Number(row?.price);
+    return Number.isFinite(p) ? Math.min(best,p) : best;
+  },Infinity);
+
+  if(Number.isFinite(bestBid) && Number.isFinite(bestAsk) && bestBid<=bestAsk){
+    return (bestBid+bestAsk)/2;
+  }
+
+  return null;
+}
+
+function updateMarketTokenPrice(assetId, price){
+  const mapping=tokenToMarket.get(String(assetId));
+  if(!mapping) return;
+
+  price=Number(price);
+  if(!Number.isFinite(price) || price<=0 || price>=1) return;
+
+  const parent=markets.find(m=>String(m.id)===String(mapping.parentMarketId || mapping.marketId));
+  if(!parent) return;
+
+  let market=findSubMarket(parent,mapping.submarketId);
+  if(!market && String(parent.id)===String(mapping.submarketId)) market=parent;
+  if(!market) return;
+
+  market.prices[mapping.outcomeIndex]=price;
+
+  if(market.prices.length===2){
+    const other=mapping.outcomeIndex===0?1:0;
+    const otherPrice=Number(market.prices[other]);
+
+    if(!Number.isFinite(otherPrice) || Math.abs((price+otherPrice)-1)>0.03){
+      market.prices[other]=1-price;
+    }
+  }
+
+  if(String(market.id)===String(parent.eventMarkets?.match?.id || parent.id)){
+    parent.prices=[...market.prices];
+  }
+
+  if(selected && String(selected.market.id)===String(market.id)){
+    selected.market.prices=[...market.prices];
+    selected.price=Number(market.prices[selected.idx]);
+
+    // Never rebuild the slip on a live price tick. Replacing the stake input
+    // causes the browser to drop focus while the user is typing.
+    updateSelectedSlipPrice();
+  }
+
+  renderMarkets();
+  if(detailMarketId===String(parent.id)) renderMarketDetail();
+}
+async function settleFromResolution(msg){
+  const assets=Array.isArray(msg?.assets_ids) ? msg.assets_ids.map(String) : [];
+  const related=assets.map(id=>tokenToMarket.get(id)).find(Boolean);
+  const marketId=related?.submarketId || related?.marketId || related?.parentMarketId;
+  if(!marketId) return;
+
+  try{
+    const data=await apiJson("/api/settle",{
+      method:"POST",
+      body:JSON.stringify({marketId})
+    });
+    applyAccountState(data);
+    loadLeaderboard().catch(()=>{});
+  }catch{}
+}
+function handleMarketSocketMessage(raw){
+  if(raw==="PONG") return;
+
+  let payload;
+  try{ payload=JSON.parse(raw); }
+  catch{ return; }
+
+  const messages=Array.isArray(payload) ? payload : [payload];
+
+  for(const msg of messages){
+    const type=msg?.event_type;
+
+    if(type==="best_bid_ask"){
+      const bid=Number(msg.best_bid);
+      const ask=Number(msg.best_ask);
+      if(Number.isFinite(bid) && Number.isFinite(ask) && bid<=ask){
+        updateMarketTokenPrice(msg.asset_id,(bid+ask)/2);
+      }
+      continue;
+    }
+
+    if(type==="book"){
+      const midpoint=bestMidpointFromBook(msg);
+      if(midpoint!==null) updateMarketTokenPrice(msg.asset_id,midpoint);
+      continue;
+    }
+
+    if(type==="last_trade_price"){
+      const p=Number(msg.price);
+      if(Number.isFinite(p)) updateMarketTokenPrice(msg.asset_id,p);
+      continue;
+    }
+
+    if(type==="market_resolved"){
+      settleFromResolution(msg);
+
+      // Mark the corresponding visible market closed immediately.
+      const assets=Array.isArray(msg.assets_ids) ? msg.assets_ids.map(String) : [];
+      const related=assets.map(id=>tokenToMarket.get(id)).find(Boolean);
+      if(related){
+        const parent=markets.find(
+          m=>String(m.id)===String(related.parentMarketId || related.marketId)
+        );
+
+        if(parent){
+          const matchId=String(parent.eventMarkets?.match?.id || parent.id);
+          const resolvedId=String(related.submarketId || related.marketId || "");
+
+          // Only remove the whole matchup when the overall match-winner
+          // market resolves. Game/map props resolving should leave it live.
+          if(resolvedId===matchId){
+            parent.closed=true;
+            parent.active=false;
+          }
+        }
+      }
+
+      renderMarkets();
+    }
+  }
+}
+
+function connectMarketSocket(){
+  closeMarketSocket();
+
+  const generation=socketGeneration;
+
+  markets.forEach(parent=>{
+    const em=parent.eventMarkets || {};
+    const submarkets=[
+      em.match,
+      ...(em.games||[]),
+      ...(em.totals||[])
+    ].filter(Boolean);
+
+    if(!submarkets.length) submarkets.push(parent);
+
+    submarkets.forEach(sm=>{
+      (sm.tokenIds||[]).slice(0,2).forEach((tokenId,idx)=>{
+        if(tokenId){
+          tokenToMarket.set(String(tokenId),{
+            parentMarketId:String(parent.id),
+            submarketId:String(sm.id || parent.id),
+            outcomeIndex:idx
+          });
+        }
+      });
+    });
+  });
+
+  const assetIds=[...tokenToMarket.keys()];
+  if(!assetIds.length){
+    setLiveStatus("● SNAPSHOT PRICES","warn");
+    return;
+  }
+
+  setLiveStatus("● CONNECTING…","warn");
+
+  const ws=new WebSocket("wss://ws-subscriptions-clob.polymarket.com/ws/market");
+  marketSocket=ws;
+
+  ws.onopen=()=>{
+    if(generation!==socketGeneration) return;
+
+    ws.send(JSON.stringify({
+      assets_ids:assetIds,
+      type:"market",
+      custom_feature_enabled:true
+    }));
+
+    marketSocketHeartbeat=setInterval(()=>{
+      if(ws.readyState===WebSocket.OPEN){
+        try{ ws.send("PING"); }catch{}
+      }
+    },10000);
+
+    setLiveStatus("● LIVE PRICES","ok");
+  };
+
+  ws.onmessage=event=>{
+    if(generation!==socketGeneration) return;
+    handleMarketSocketMessage(event.data);
+  };
+
+  ws.onerror=()=>{
+    if(generation!==socketGeneration) return;
+    setLiveStatus("● LIVE FEED ERROR","bad");
+  };
+
+  ws.onclose=()=>{
+    if(generation!==socketGeneration) return;
+
+    if(marketSocketHeartbeat){
+      clearInterval(marketSocketHeartbeat);
+      marketSocketHeartbeat=null;
+    }
+
+    setLiveStatus("● RECONNECTING…","warn");
+
+    marketSocketReconnect=setTimeout(()=>{
+      if(generation===socketGeneration) connectMarketSocket();
+    },2500);
+  };
+}
+
+async function settleKnownMarkets(){
+  if(!state.user) return;
+  try{
+    const data=await apiJson("/api/settle",{
+      method:"POST",
+      body:JSON.stringify({})
+    });
+    applyAccountState(data);
+  }catch(e){
+    if(e.status===401) showAuth();
+  }
+}
+async function loadMarkets(){
+  const banner=document.getElementById("banner");
+  closeMarketSocket();
+  setLiveStatus("● LOADING…","warn");
+
+  try{
+    const r=await fetch(`/api/markets?game=${encodeURIComponent(currentGame)}`);
+    const data=await r.json();
+    if(!r.ok) throw new Error(data.error || "Could not load markets");
+
+    markets=data.markets || [];
+
+    const visibleCount=markets.filter(m=>{
+      const matchMarket=m.eventMarkets?.match || m;
+      return m.active && !m.closed &&
+        isTeamVsTeamMarket(matchMarket,m) &&
+        matchMarket.active !== false &&
+        !matchMarket.closed;
+    }).length;
+
+    banner.style.display="block";
+    banner.textContent=`Live read-only data from ${data.source}. Showing ${visibleCount} ${data.game || currentGameName()} markets. Prices stream automatically while this page is open.`;
+
+    renderMarkets();
+    connectMarketSocket();
+
+    // Immediate settlement check for bets that resolved while the app was closed.
+    await settleKnownMarkets();
+  }catch(e){
+    setLiveStatus("● FEED OFFLINE","bad");
+    banner.style.display="block";
+    banner.textContent=`Live feed unavailable: ${e.message}. The simulator itself still works once the feed is reachable.`;
+    document.getElementById("markets").innerHTML=`<div class="loading">Could not load live markets.</div>`;
+  }
+}
+
+document.querySelectorAll(".tab-btn").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    document.querySelectorAll(".tab-btn").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(x=>x.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
+    if(btn.dataset.tab==="stats") requestAnimationFrame(drawPnlChart);
+    if(btn.dataset.tab==="leaderboard") loadLeaderboard();
+  });
+});
+
+window.addEventListener("resize",()=>requestAnimationFrame(drawPnlChart));
+
+document.querySelectorAll(".game-chip").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    if(btn.dataset.game===currentGame) return;
+    currentGame=btn.dataset.game;
+    localStorage.setItem(GAME_TAB_KEY,currentGame);
+    selected=null;
+    renderSlip();
+    document.querySelectorAll(".game-chip").forEach(x=>x.classList.remove("active"));
+    btn.classList.add("active");
+    markets=[];
+    document.getElementById("markets").innerHTML=`<div class="loading">Loading live ${esc(currentGameName())} markets…</div>`;
+    loadMarkets();
+  });
+});
+
+document.getElementById("marketDetailClose").addEventListener("click",closeMarketDetail);
+document.getElementById("marketDetailBackdrop").addEventListener("click",e=>{
+  if(e.target.id==="marketDetailBackdrop") closeMarketDetail();
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape" && detailMarketId) closeMarketDetail();
+});
+
+document.getElementById("reset").onclick=async()=>{
+  if(!confirm("Reset your account to $1,000 and erase all of your simulated-bet history?")) return;
+  try{
+    const data=await apiJson("/api/reset",{method:"POST",body:"{}"});
+    selected=null;
+    stakeDraft=25;
+    applyAccountState(data);
+    renderSlip();
+    loadLeaderboard().catch(()=>{});
+  }catch(e){ alert(e.message); }
+};
+
+function showAuth(){
+  closeMarketSocket();
+  document.getElementById("appShell").style.display="none";
+  document.getElementById("authScreen").style.display="flex";
+  state={user:null,bankroll:0,bets:[]};
+}
+
+function getLegacySimulatorState(){
+  try{
+    const raw=localStorage.getItem("mockLeagueStateV2");
+    if(!raw) return null;
+
+    const parsed=JSON.parse(raw);
+    if(!parsed || !Array.isArray(parsed.bets) || !Number.isFinite(Number(parsed.bankroll))){
+      return null;
+    }
+
+    return parsed;
+  }catch{
+    return null;
+  }
+}
+
+function updateLegacyImportButton(){
+  const button=document.getElementById("importLegacyBtn");
+  if(!button) return;
+
+  const legacy=getLegacySimulatorState();
+  const canImport=Boolean(
+    state.user &&
+    legacy &&
+    legacy.bets.length &&
+    state.bets.length===0
+  );
+
+  button.style.display=canImport ? "inline" : "none";
+  if(canImport){
+    button.textContent=`Import ${legacy.bets.length} old bets`;
+  }
+}
+
+async function importLegacyBets(){
+  const legacy=getLegacySimulatorState();
+
+  if(!legacy){
+    alert("No old local simulator data was found.");
+    return;
+  }
+
+  const ok=confirm(
+    `Import ${legacy.bets.length} old bets and restore your old ${fmt(legacy.bankroll)} bankroll to this account?`
+  );
+  if(!ok) return;
+
+  const button=document.getElementById("importLegacyBtn");
+  if(button) button.disabled=true;
+
+  try{
+    const data=await apiJson("/api/import-legacy",{
+      method:"POST",
+      body:JSON.stringify({legacy})
+    });
+
+    applyAccountState(data);
+    updateLegacyImportButton();
+
+    // Resolve anything Polymarket has already finalized since these bets were made.
+    await settleKnownMarkets();
+    await loadLeaderboard().catch(()=>{});
+
+    alert(`Imported ${data.importedCount || legacy.bets.length} old bets.`);
+  }catch(e){
+    alert(e.message);
+  }finally{
+    if(button) button.disabled=false;
+  }
+}
+
+function syncGameTabUi(){
+  document.querySelectorAll(".game-chip").forEach(btn=>{
+    btn.classList.toggle("active",btn.dataset.game===currentGame);
+  });
+
+  document.getElementById("markets").innerHTML=
+    `<div class="loading">Loading live ${esc(currentGameName())} markets…</div>`;
+}
+
+function showApp(data){
+  applyAccountState(data);
+  document.getElementById("authScreen").style.display="none";
+  document.getElementById("appShell").style.display="block";
+  syncGameTabUi();
+  renderSlip();
+  loadMarkets();
+}
+
+function setAuthMode(mode){
+  authMode=mode;
+
+  const login=mode==="login";
+  const register=mode==="register";
+  const reset=mode==="reset";
+
+  document.getElementById("authLoginTab").classList.toggle("active",login);
+  document.getElementById("authRegisterTab").classList.toggle("active",register);
+
+  // Hide the login/register tabs while resetting so the flow is obvious.
+  document.querySelector(".auth-switch").style.display=reset ? "none" : "grid";
+
+  document.getElementById("authPasswordLabel").style.display=reset ? "none" : "block";
+  document.querySelectorAll(".auth-reset-only").forEach(el=>{
+    el.style.display=reset ? "block" : "none";
+  });
+
+  document.getElementById("forgotPasswordBtn").style.display=
+    reset ? "none" : "inline";
+  document.getElementById("backToLoginBtn").style.display=
+    reset ? "inline" : "none";
+
+  document.getElementById("authSubmit").textContent=
+    login ? "Login" :
+    register ? "Create account" :
+    "Reset password";
+
+  document.getElementById("authPassword").autocomplete=
+    login ? "current-password" : "new-password";
+
+  document.getElementById("authError").textContent="";
+}
+async function submitAuth(){
+  const username=document.getElementById("authUsername").value.trim();
+  const error=document.getElementById("authError");
+  const button=document.getElementById("authSubmit");
+
+  error.textContent="";
+  button.disabled=true;
+
+  try{
+    if(authMode==="reset"){
+      const recoveryCode=document.getElementById("authRecoveryCode").value;
+      const newPassword=document.getElementById("authNewPassword").value;
+
+      const data=await apiJson("/api/reset-password",{
+        method:"POST",
+        body:JSON.stringify({
+          username,
+          recoveryCode,
+          newPassword
+        })
+      });
+
+      document.getElementById("authRecoveryCode").value="";
+      document.getElementById("authNewPassword").value="";
+      setAuthMode("login");
+      error.style.color="var(--green)";
+      error.textContent=data.message || "Password reset. You can log in now.";
+      return;
+    }
+
+    const password=document.getElementById("authPassword").value;
+
+    const data=await apiJson(
+      authMode==="login" ? "/api/login" : "/api/register",
+      {
+        method:"POST",
+        body:JSON.stringify({username,password})
+      }
+    );
+
+    document.getElementById("authPassword").value="";
+    showApp(data);
+  }catch(e){
+    error.style.color="var(--red)";
+    error.textContent=e.message;
+  }finally{
+    button.disabled=false;
+  }
+}
+async function bootstrapAuth(){
+  try{
+    const data=await apiJson("/api/me");
+    showApp(data);
+  }catch{
+    showAuth();
+  }
+}
+
+async function loadLeaderboard(){
+  if(!state.user) return;
+  const body=document.getElementById("leaderboardBody");
+  try{
+    const data=await apiJson("/api/leaderboard");
+    const rows=data.leaderboard || [];
+    body.innerHTML=rows.length ? rows.map(r=>`<tr class="${r.username===state.user.username?"leader-me":""}">
+      <td>${r.rank}</td>
+      <td>${esc(r.username)}</td>
+      <td class="${r.pnl>0?"pos":r.pnl<0?"neg":""}">${r.pnl>=0?"+":""}${fmt(r.pnl)}</td>
+      <td>${Number(r.roi).toFixed(1)}%</td>
+      <td>${r.wins}-${r.losses}</td>
+      <td>${r.openBets}</td>
+      <td>${fmt(r.bankroll)}</td>
+    </tr>`).join("") : `<tr><td colspan="7" style="color:var(--muted)">No players yet.</td></tr>`;
+  }catch(e){
+    body.innerHTML=`<tr><td colspan="7" style="color:var(--red)">${esc(e.message)}</td></tr>`;
+  }
+}
+
+document.getElementById("forgotPasswordBtn").addEventListener("click",()=>setAuthMode("reset"));
+document.getElementById("backToLoginBtn").addEventListener("click",()=>setAuthMode("login"));
+document.getElementById("authLoginTab").addEventListener("click",()=>setAuthMode("login"));
+document.getElementById("authRegisterTab").addEventListener("click",()=>setAuthMode("register"));
+document.getElementById("authSubmit").addEventListener("click",submitAuth);
+document.getElementById("authPassword").addEventListener("keydown",e=>{ if(e.key==="Enter") submitAuth(); });
+document.getElementById("authRecoveryCode").addEventListener("keydown",e=>{ if(e.key==="Enter") submitAuth(); });
+document.getElementById("authNewPassword").addEventListener("keydown",e=>{ if(e.key==="Enter") submitAuth(); });
+document.getElementById("authUsername").addEventListener("keydown",e=>{ if(e.key==="Enter") submitAuth(); });
+document.getElementById("importLegacyBtn").addEventListener("click",importLegacyBets);
+document.getElementById("logoutBtn").addEventListener("click",async()=>{
+  try{ await apiJson("/api/logout",{method:"POST",body:"{}"}); }catch{}
+  showAuth();
+});
+
+// Fallback settlement polling catches resolutions that happened while the
+// WebSocket was disconnected or while a different game tab was selected.
+setInterval(()=>settleKnownMarkets(),30000);
+
+window.addEventListener("beforeunload",closeMarketSocket);
+
+renderStats(); renderHistory(); renderAnalytics(); renderSlip(); setAuthMode("login"); bootstrapAuth();
+</script>
+</body>
+</html>
