@@ -21,6 +21,11 @@
     .bank{background:var(--panel);border:1px solid var(--line);padding:12px 16px;border-radius:14px;text-align:right}
     .bank b{font-size:22px}
     .bank small{display:block;color:var(--muted)}
+    .refill-btn{display:none;margin-top:8px;width:100%;border:1px solid var(--accent);background:transparent;color:var(--accent);font-size:11px;font-weight:800;border-radius:8px;padding:7px 9px;cursor:pointer}
+    .refill-btn:hover{background:rgba(182,255,92,.08)}
+    .refill-btn:disabled{opacity:.55;cursor:not-allowed}
+    .refill-note{display:none!important;margin-top:7px;font-size:10px;max-width:190px}
+
     .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
     .stat,.card,.bet-slip,.history{background:var(--panel);border:1px solid var(--line);border-radius:16px}
     .stat{padding:16px}.stat label{font-size:12px;color:var(--muted);display:block;margin-bottom:5px}.stat strong{font-size:21px}
@@ -63,6 +68,15 @@
     tr:last-child td{border-bottom:0}
     .pos{color:var(--green)} .neg{color:var(--red)}
     .status{padding:4px 7px;background:var(--chip);border-radius:999px;font-size:10px}
+    .group-toggle{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px 6px;font-size:13px;line-height:1}
+    .group-toggle:hover{color:var(--text)}
+    .history-group-row{background:rgba(255,255,255,.012)}
+    .history-child-row{display:none;background:#0d0f13}
+    .history-child-row.open{display:table-row}
+    .history-child-row td{color:var(--muted);font-size:11px}
+    .history-child-row td:nth-child(2){padding-left:28px}
+    .fill-count{color:var(--muted);font-size:10px;margin-left:6px}
+
     .banner{display:none;margin:0 0 14px;padding:11px 13px;border:1px solid var(--line);border-radius:12px;color:var(--muted);font-size:12px}
     .loading{color:var(--muted);padding:24px 0}
 
@@ -166,12 +180,17 @@
         <button id="importLegacyBtn" type="button" style="display:none">Import old bets</button>
         <button id="logoutBtn" type="button">Log out</button>
       </div>
-      <div class="bank"><small>AVAILABLE</small><b id="bankroll">$1,000.00</b></div>
+      <div class="bank">
+        <small>AVAILABLE</small>
+        <b id="bankroll">$1,000.00</b>
+        <button id="refillBtn" class="refill-btn" type="button">+ Daily $1,000 refill</button>
+        <small id="refillNote" class="refill-note"></small>
+      </div>
     </div>
   </header>
 
   <div class="stats">
-    <div class="stat"><label>STARTING BALANCE</label><strong>$1,000.00</strong></div>
+    <div class="stat"><label>AMOUNT DEPOSITED</label><strong id="amountDeposited">$1,000.00</strong></div>
     <div class="stat"><label>REALIZED P/L</label><strong id="realized">$0.00</strong></div>
     <div class="stat"><label>OPEN PICKS</label><strong id="openCount">0</strong></div>
     <div class="stat"><label>SIM ROI</label><strong id="roi">0.0%</strong></div>
@@ -210,6 +229,7 @@
       <div class="stat"><label>WIN RATE</label><strong id="statWinRate">—</strong></div>
       <div class="stat"><label>NET P/L</label><strong id="statNet">+$0.00</strong></div>
       <div class="stat"><label>TOTAL STAKED</label><strong id="statStaked">$0.00</strong></div>
+      <div class="stat"><label>PENDING STAKE</label><strong id="statPendingStake">$0.00</strong><div class="metric-note">Fake money currently tied up in open picks</div></div>
       <div class="stat"><label>ROI</label><strong id="statRoi">—</strong></div>
       <div class="stat"><label>AVG ENTRY</label><strong id="statAvgEntry">—</strong></div>
       <div class="stat"><label>BIGGEST WIN</label><strong id="statBiggestWin">—</strong></div>
@@ -218,7 +238,7 @@
     <div class="analytics-card">
       <h3>CUMULATIVE REALIZED P/L</h3>
       <div class="chart-wrap"><canvas id="pnlChart"></canvas></div>
-      <div class="metric-note">Starts at $0 and updates automatically whenever a simulated bet resolves.</div>
+      <div class="metric-note">Tracks betting P/L only. Deposits/refills increase available capital but do not change profit or loss.</div>
     </div>
 
     <div class="weekly-grid">
@@ -249,7 +269,7 @@
     </div>
     <div class="history">
       <table>
-        <thead><tr><th>Placed</th><th>Match</th><th>Pick</th><th>Stake</th><th>Entry</th><th>Potential</th><th>Status</th><th>P/L</th></tr></thead>
+        <thead><tr><th style="width:32px"></th><th>Placed</th><th>Match</th><th>Pick</th><th>Stake</th><th>Avg Entry</th><th>Potential</th><th>Status</th><th>P/L</th></tr></thead>
         <tbody id="history"></tbody>
       </table>
     </div>
@@ -290,7 +310,7 @@ let currentGame = (localStorage.getItem(GAME_TAB_KEY) || localStorage.getItem(LE
 let selected = null;
 let stakeDraft = 25;
 let detailMarketId = null;
-let state = {user:null, bankroll:0, bets:[]};
+let state = {user:null, bankroll:0, bets:[], refill:null};
 let authMode = "login";
 
 let marketSocket = null;
@@ -318,7 +338,8 @@ function applyAccountState(data){
   state={
     user:data.user || state.user || null,
     bankroll:Number(data.bankroll || 0),
-    bets:Array.isArray(data.bets) ? data.bets : []
+    bets:Array.isArray(data.bets) ? data.bets : [],
+    refill:data.refill || null
   };
   document.getElementById("usernameDisplay").textContent=state.user?.username || "—";
   renderStats();
@@ -354,11 +375,64 @@ function esc(s=""){ return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":
 function renderStats(){
   const realized = state.bets.reduce((a,b)=>a+(b.pnl || 0),0);
   const open = state.bets.filter(b=>b.status==="OPEN").length;
+
+  const totalRefilled=Number(state.refill?.totalRefilled || 0);
+  const amountDeposited=START + totalRefilled;
+
   document.getElementById("bankroll").textContent = fmt(state.bankroll);
-  document.getElementById("realized").textContent = `${realized>=0?"+":""}${fmt(realized)}`;
-  document.getElementById("realized").className = realized>=0?"pos":"neg";
+  document.getElementById("amountDeposited").textContent = fmt(amountDeposited);
+
+  document.getElementById("realized").textContent =
+    `${realized>=0?"+":""}${fmt(realized)}`;
+  document.getElementById("realized").className =
+    realized>=0 ? "pos" : "neg";
+
   document.getElementById("openCount").textContent = open;
-  document.getElementById("roi").textContent = `${(realized/START*100).toFixed(1)}%`;
+
+  // Top-level SIM ROI is return on all simulated capital deposited,
+  // including the initial $1,000 plus any daily refills.
+  document.getElementById("roi").textContent =
+    amountDeposited>0
+      ? `${(realized/amountDeposited*100).toFixed(1)}%`
+      : "0.0%";
+
+  renderRefill();
+}
+function renderRefill(){
+  const button=document.getElementById("refillBtn");
+  const note=document.getElementById("refillNote");
+  if(!button || !note) return;
+
+  button.style.display="none";
+  note.style.display="none";
+  button.disabled=false;
+
+  // The bailout only appears after the account is completely busted.
+  if(Number(state.bankroll)!==0 || !state.refill) return;
+
+  button.style.display="block";
+
+  if(state.refill.eligible){
+    button.disabled=false;
+    button.textContent=`+ Daily ${fmt(state.refill.amount || 1000)} refill`;
+    note.style.display="block";
+    note.textContent="Your bet history and P/L stay exactly as-is.";
+    return;
+  }
+
+  button.disabled=true;
+  button.textContent="Daily refill already used";
+
+  if(state.refill.nextEligibleAt){
+    const next=new Date(state.refill.nextEligibleAt);
+    note.style.display="block";
+    note.textContent=`Available again ${next.toLocaleString(undefined,{
+      month:"short",
+      day:"numeric",
+      hour:"numeric",
+      minute:"2-digit"
+    })}.`;
+  }
 }
 
 
@@ -789,23 +863,176 @@ window.placeFakeBet = async () => {
 
 function renderHistory(){
   const el=document.getElementById("history");
+
   if(!state.bets.length){
-    el.innerHTML=`<tr><td colspan="8" style="color:var(--muted)">No simulated bets yet.</td></tr>`;
+    el.innerHTML=`<tr><td colspan="9" style="color:var(--muted)">No simulated bets yet.</td></tr>`;
     return;
   }
 
-  el.innerHTML=state.bets.map(b=>`<tr>
-    <td>${esc(new Date(b.placedAt).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}))}</td>
-    <td>${esc(b.question)}</td>
-    <td>${esc(b.outcome)}</td>
-    <td>${fmt(b.stake)}</td>
-    <td>${Math.round(b.entryPrice*100)}%</td>
-    <td>${fmt(b.potential)}</td>
-    <td><span class="status">${b.status}</span></td>
-    <td class="${b.pnl>0?"pos":b.pnl<0?"neg":""}">${b.status==="OPEN"?"—":`${b.pnl>=0?"+":""}${fmt(b.pnl)}`}</td>
-  </tr>`).join("");
-}
+  const groups=new Map();
 
+  state.bets.forEach(b=>{
+    const key=[
+      String(b.marketId||""),
+      String(b.outcomeIndex ?? ""),
+      String(b.outcome||"")
+    ].join("::");
+
+    if(!groups.has(key)){
+      groups.set(key,{
+        key,
+        marketId:b.marketId,
+        question:b.question,
+        outcome:b.outcome,
+        outcomeIndex:b.outcomeIndex,
+        bets:[]
+      });
+    }
+
+    groups.get(key).bets.push(b);
+  });
+
+  const grouped=[...groups.values()]
+    .map(group=>{
+      const fills=group.bets.slice().sort(
+        (a,b)=>new Date(b.placedAt)-new Date(a.placedAt)
+      );
+
+      const totalStake=fills.reduce(
+        (sum,b)=>sum+Number(b.stake||0),0
+      );
+
+      const weightedEntry=totalStake>0
+        ? fills.reduce(
+            (sum,b)=>sum+Number(b.entryPrice||0)*Number(b.stake||0),
+            0
+          )/totalStake
+        : 0;
+
+      const totalPotential=fills.reduce(
+        (sum,b)=>sum+Number(b.potential||0),0
+      );
+
+      const totalPnl=fills.reduce(
+        (sum,b)=>sum+Number(b.pnl||0),0
+      );
+
+      const openCount=fills.filter(b=>b.status==="OPEN").length;
+      const wonCount=fills.filter(b=>b.status==="WON").length;
+      const lostCount=fills.filter(b=>b.status==="LOST").length;
+
+      let status="MIXED";
+      if(openCount===fills.length) status="OPEN";
+      else if(wonCount===fills.length) status="WON";
+      else if(lostCount===fills.length) status="LOST";
+
+      return {
+        ...group,
+        fills,
+        latestPlacedAt:fills[0]?.placedAt,
+        totalStake,
+        weightedEntry,
+        totalPotential,
+        totalPnl,
+        status
+      };
+    })
+    .sort(
+      (a,b)=>new Date(b.latestPlacedAt)-new Date(a.latestPlacedAt)
+    );
+
+  const rows=[];
+
+  grouped.forEach((group,groupIndex)=>{
+    const groupId=`history-group-${groupIndex}`;
+    const multi=group.fills.length>1;
+
+    const placed=group.latestPlacedAt
+      ? new Date(group.latestPlacedAt).toLocaleString(undefined,{
+          month:"short",
+          day:"numeric",
+          hour:"numeric",
+          minute:"2-digit"
+        })
+      : "—";
+
+    const pnlDisplay=group.status==="OPEN"
+      ? "—"
+      : `${group.totalPnl>=0?"+":""}${fmt(group.totalPnl)}`;
+
+    rows.push(`<tr class="history-group-row">
+      <td>
+        ${multi
+          ? `<button class="group-toggle" type="button" data-group="${groupId}" aria-expanded="false">▸</button>`
+          : ""
+        }
+      </td>
+      <td>${esc(placed)}</td>
+      <td>
+        ${esc(group.question)}
+        ${multi ? `<span class="fill-count">${group.fills.length} bets</span>` : ""}
+      </td>
+      <td>${esc(group.outcome)}</td>
+      <td>${fmt(group.totalStake)}</td>
+      <td>${Math.round(group.weightedEntry*100)}%</td>
+      <td>${fmt(group.totalPotential)}</td>
+      <td><span class="status">${group.status}</span></td>
+      <td class="${group.totalPnl>0?"pos":group.totalPnl<0?"neg":""}">
+        ${pnlDisplay}
+      </td>
+    </tr>`);
+
+    if(multi){
+      group.fills.forEach(fill=>{
+        rows.push(`<tr class="history-child-row" data-history-group="${groupId}">
+          <td></td>
+          <td>${esc(new Date(fill.placedAt).toLocaleString(undefined,{
+            month:"short",
+            day:"numeric",
+            hour:"numeric",
+            minute:"2-digit"
+          }))}</td>
+          <td>${esc(fill.question)}</td>
+          <td>${esc(fill.outcome)}</td>
+          <td>${fmt(fill.stake)}</td>
+          <td>${Math.round(Number(fill.entryPrice||0)*100)}%</td>
+          <td>${fmt(fill.potential)}</td>
+          <td><span class="status">${fill.status}</span></td>
+          <td class="${fill.pnl>0?"pos":fill.pnl<0?"neg":""}">
+            ${fill.status==="OPEN"
+              ? "—"
+              : `${fill.pnl>=0?"+":""}${fmt(fill.pnl)}`
+            }
+          </td>
+        </tr>`);
+      });
+    }
+  });
+
+  el.innerHTML=rows.join("");
+
+  el.querySelectorAll(".group-toggle").forEach(button=>{
+    button.addEventListener("click",()=>{
+      const groupId=button.dataset.group;
+      const children=el.querySelectorAll(
+        `[data-history-group="${groupId}"]`
+      );
+
+      const opening=button.getAttribute("aria-expanded")!=="true";
+
+      button.setAttribute(
+        "aria-expanded",
+        opening ? "true" : "false"
+      );
+
+      button.textContent=opening ? "▾" : "▸";
+
+      children.forEach(row=>{
+        row.classList.toggle("open",opening);
+      });
+    });
+  });
+}
 function startOfWeek(date){
   const d=new Date(date);
   const day=d.getDay();
@@ -825,64 +1052,155 @@ function drawPnlChart(){
   canvas.height=Math.max(1,Math.floor(rect.height*dpr));
 
   const ctx=canvas.getContext("2d");
-  ctx.scale(dpr,dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
 
-  const w=rect.width, h=rect.height;
+  const w=rect.width;
+  const h=rect.height;
   ctx.clearRect(0,0,w,h);
 
   const resolved=state.bets
     .filter(b=>b.status!=="OPEN")
     .slice()
-    .sort((a,b)=>new Date(a.resolvedAt||a.placedAt)-new Date(b.resolvedAt||b.placedAt));
+    .sort((a,b)=>
+      new Date(a.resolvedAt||a.placedAt)-
+      new Date(b.resolvedAt||b.placedAt)
+    );
 
   const points=[{label:"Start",value:0}];
   let cumulative=0;
+
   resolved.forEach((b,i)=>{
     cumulative+=Number(b.pnl||0);
     points.push({label:i+1,value:cumulative});
   });
 
   const values=points.map(p=>p.value);
-  let min=Math.min(0,...values), max=Math.max(0,...values);
-  if(min===max){ min-=10; max+=10; }
-  const pad={l:52,r:18,t:16,b:34};
-  const iw=w-pad.l-pad.r, ih=h-pad.t-pad.b;
 
-  const x=i=>pad.l+(points.length===1?0:(i/(points.length-1))*iw);
-  const y=v=>pad.t+((max-v)/(max-min))*ih;
+  let rawMin=Math.min(0,...values);
+  let rawMax=Math.max(0,...values);
 
-  ctx.strokeStyle="#252934";
-  ctx.lineWidth=1;
-  ctx.beginPath();
-  ctx.moveTo(pad.l,y(0)); ctx.lineTo(w-pad.r,y(0)); ctx.stroke();
+  if(rawMin===rawMax){
+    rawMin-=10;
+    rawMax+=10;
+  }
 
-  ctx.fillStyle="#9298a8";
+  // Add breathing room above/below the actual data so the line isn't
+  // sitting directly on the chart edge.
+  const rawRange=rawMax-rawMin || 1;
+  let min=rawMin-rawRange*0.08;
+  let max=rawMax+rawRange*0.08;
+
+  // Ensure zero always stays visible.
+  min=Math.min(min,0);
+  max=Math.max(max,0);
+
   ctx.font="11px system-ui";
-  ctx.textAlign="right";
-  ctx.fillText(fmt(max),pad.l-8,pad.t+5);
-  ctx.fillText(fmt(min),pad.l-8,h-pad.b);
-  ctx.fillText("$0",pad.l-8,y(0)+4);
 
+  const tickCount=5;
+  const tickValues=Array.from({length:tickCount},(_,i)=>
+    max-(i/(tickCount-1))*(max-min)
+  );
+
+  const formatAxisMoney=value=>{
+    const abs=Math.abs(value);
+
+    if(abs>=1000){
+      return `${value<0?"-":""}$${(abs/1000).toFixed(
+        abs>=10000 ? 0 : 1
+      )}k`;
+    }
+
+    return `${value<0?"-":""}$${abs.toFixed(0)}`;
+  };
+
+  const tickLabels=tickValues.map(formatAxisMoney);
+  const widestLabel=Math.max(
+    ...tickLabels.map(label=>ctx.measureText(label).width),
+    ctx.measureText("$0").width
+  );
+
+  // Dynamic left padding fixes the old issue where "-$1,000.00"
+  // extended outside the canvas and the minus sign got clipped.
+  const pad={
+    l:Math.ceil(widestLabel)+18,
+    r:20,
+    t:18,
+    b:36
+  };
+
+  const iw=Math.max(1,w-pad.l-pad.r);
+  const ih=Math.max(1,h-pad.t-pad.b);
+
+  const x=i=>
+    pad.l+
+    (points.length===1 ? 0 : (i/(points.length-1))*iw);
+
+  const y=v=>
+    pad.t+
+    ((max-v)/(max-min))*ih;
+
+  // Horizontal grid and Y-axis labels.
+  ctx.lineWidth=1;
+  ctx.textAlign="right";
+  ctx.textBaseline="middle";
+
+  tickValues.forEach((value,i)=>{
+    const yy=y(value);
+
+    ctx.strokeStyle="#252934";
+    ctx.beginPath();
+    ctx.moveTo(pad.l,yy);
+    ctx.lineTo(w-pad.r,yy);
+    ctx.stroke();
+
+    ctx.fillStyle="#9298a8";
+    ctx.fillText(tickLabels[i],pad.l-8,yy);
+  });
+
+  // Emphasize zero line slightly.
+  if(min<=0 && max>=0){
+    ctx.strokeStyle="#3a3f4d";
+    ctx.beginPath();
+    ctx.moveTo(pad.l,y(0));
+    ctx.lineTo(w-pad.r,y(0));
+    ctx.stroke();
+  }
+
+  // P/L line.
   ctx.strokeStyle="#b6ff5c";
   ctx.lineWidth=2;
   ctx.beginPath();
+
   points.forEach((p,i)=>{
     if(i===0) ctx.moveTo(x(i),y(p.value));
     else ctx.lineTo(x(i),y(p.value));
   });
+
   ctx.stroke();
 
+  // Data points.
   ctx.fillStyle="#b6ff5c";
   points.forEach((p,i)=>{
-    ctx.beginPath(); ctx.arc(x(i),y(p.value),3,0,Math.PI*2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x(i),y(p.value),3,0,Math.PI*2);
+    ctx.fill();
   });
 
+  // X-axis labels.
   ctx.fillStyle="#9298a8";
   ctx.textAlign="center";
-  ctx.fillText("Start",pad.l,h-10);
-  if(points.length>1) ctx.fillText(`${resolved.length} resolved`,w-pad.r,h-10);
-}
+  ctx.textBaseline="alphabetic";
 
+  ctx.fillText("Start",pad.l,h-10);
+
+  if(points.length>1){
+    ctx.fillText(
+      `${resolved.length} resolved`,
+      w-pad.r,
+      h-10
+    );
+  }
+}
 function renderAnalytics(){
   const bets=state.bets;
   const resolved=bets.filter(b=>b.status!=="OPEN");
@@ -891,6 +1209,9 @@ function renderAnalytics(){
   const pending=bets.filter(b=>b.status==="OPEN").length;
   const net=resolved.reduce((s,b)=>s+Number(b.pnl||0),0);
   const totalStaked=bets.reduce((s,b)=>s+Number(b.stake||0),0);
+  const pendingStake=bets
+    .filter(b=>b.status==="OPEN")
+    .reduce((s,b)=>s+Number(b.stake||0),0);
   const resolvedStaked=resolved.reduce((s,b)=>s+Number(b.stake||0),0);
   const avgEntry=bets.length?bets.reduce((s,b)=>s+Number(b.entryPrice||0),0)/bets.length:null;
   const biggestWin=resolved.filter(b=>b.pnl>0).reduce((m,b)=>Math.max(m,Number(b.pnl)),0);
@@ -902,6 +1223,7 @@ function renderAnalytics(){
   document.getElementById("statNet").textContent=`${net>=0?"+":""}${fmt(net)}`;
   document.getElementById("statNet").className=net>=0?"pos":"neg";
   document.getElementById("statStaked").textContent=fmt(totalStaked);
+  document.getElementById("statPendingStake").textContent=fmt(pendingStake);
   document.getElementById("statRoi").textContent=resolvedStaked?`${(net/resolvedStaked*100).toFixed(1)}%`:"—";
   document.getElementById("statAvgEntry").textContent=avgEntry?`${Math.round(avgEntry*100)}% · ${(1/avgEntry).toFixed(2)}x`:"—";
   document.getElementById("statBiggestWin").textContent=biggestWin?`+${fmt(biggestWin)}`:"—";
@@ -1061,6 +1383,49 @@ async function settleFromResolution(msg){
     loadLeaderboard().catch(()=>{});
   }catch{}
 }
+function removeResolvedSubmarket(parent,resolvedId){
+  if(!parent || !resolvedId) return;
+
+  const id=String(resolvedId);
+  const em=parent.eventMarkets || {};
+  const matchId=String(em.match?.id || parent.id);
+
+  // Only the actual overall match market may close the whole matchup.
+  if(id===matchId){
+    parent.closed=true;
+    parent.active=false;
+
+    if(em.match){
+      em.match.closed=true;
+      em.match.active=false;
+    }
+
+    if(selected && String(selected.market?.id)===id){
+      selected=null;
+      stakeDraft=25;
+      renderSlip();
+    }
+
+    return;
+  }
+
+  // Child markets resolve independently. Remove only that exact game/map
+  // or total from the detail view and leave every other market untouched.
+  if(Array.isArray(em.games)){
+    em.games=em.games.filter(sm=>String(sm.id)!==id);
+  }
+
+  if(Array.isArray(em.totals)){
+    em.totals=em.totals.filter(sm=>String(sm.id)!==id);
+  }
+
+  if(selected && String(selected.market?.id)===id){
+    selected=null;
+    stakeDraft=25;
+    renderSlip();
+  }
+}
+
 function handleMarketSocketMessage(raw){
   if(raw==="PONG") return;
 
@@ -1095,30 +1460,42 @@ function handleMarketSocketMessage(raw){
     }
 
     if(type==="market_resolved"){
+      // Resolve bets only for the exact submarket Polymarket says finished.
       settleFromResolution(msg);
 
-      // Mark the corresponding visible market closed immediately.
-      const assets=Array.isArray(msg.assets_ids) ? msg.assets_ids.map(String) : [];
-      const related=assets.map(id=>tokenToMarket.get(id)).find(Boolean);
+      const assets=Array.isArray(msg.assets_ids)
+        ? msg.assets_ids.map(String)
+        : [];
+
+      const related=assets
+        .map(id=>tokenToMarket.get(id))
+        .find(Boolean);
+
       if(related){
         const parent=markets.find(
-          m=>String(m.id)===String(related.parentMarketId || related.marketId)
+          m=>String(m.id)===String(
+            related.parentMarketId || related.marketId
+          )
         );
 
-        if(parent){
-          const matchId=String(parent.eventMarkets?.match?.id || parent.id);
-          const resolvedId=String(related.submarketId || related.marketId || "");
+        const resolvedId=String(
+          related.submarketId ||
+          related.marketId ||
+          ""
+        );
 
-          // Only remove the whole matchup when the overall match-winner
-          // market resolves. Game/map props resolving should leave it live.
-          if(resolvedId===matchId){
-            parent.closed=true;
-            parent.active=false;
-          }
+        if(parent && resolvedId){
+          removeResolvedSubmarket(parent,resolvedId);
         }
       }
 
       renderMarkets();
+
+      // If the user currently has this matchup open, immediately redraw the
+      // modal so the finished Game/Map/Total row disappears without refresh.
+      if(detailMarketId){
+        renderMarketDetail();
+      }
     }
   }
 }
@@ -1290,6 +1667,37 @@ document.addEventListener("keydown",e=>{
   if(e.key==="Escape" && detailMarketId) closeMarketDetail();
 });
 
+document.getElementById("refillBtn").addEventListener("click",async()=>{
+  const button=document.getElementById("refillBtn");
+  if(!state.refill?.eligible || Number(state.bankroll)!==0) return;
+
+  if(!confirm(
+    "Claim another $1,000 of simulated money? Your existing losses, record, ROI, and bet history will NOT be reset."
+  )) return;
+
+  button.disabled=true;
+
+  try{
+    const data=await apiJson("/api/refill",{
+      method:"POST",
+      body:"{}"
+    });
+
+    applyAccountState(data);
+    loadLeaderboard().catch(()=>{});
+  }catch(e){
+    alert(e.message);
+
+    // Refresh account state in case another tab claimed it first.
+    try{
+      const data=await apiJson("/api/me");
+      applyAccountState(data);
+    }catch{}
+  }finally{
+    renderRefill();
+  }
+});
+
 document.getElementById("reset").onclick=async()=>{
   if(!confirm("Reset your account to $1,000 and erase all of your simulated-bet history?")) return;
   try{
@@ -1306,7 +1714,7 @@ function showAuth(){
   closeMarketSocket();
   document.getElementById("appShell").style.display="none";
   document.getElementById("authScreen").style.display="flex";
-  state={user:null,bankroll:0,bets:[]};
+  state={user:null,bankroll:0,bets:[],refill:null};
 }
 
 function getLegacySimulatorState(){

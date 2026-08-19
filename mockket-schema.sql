@@ -55,4 +55,15 @@ CREATE INDEX IF NOT EXISTS bets_status_market_idx
 CREATE INDEX IF NOT EXISTS bets_placed_at_idx
     ON bets(placed_at DESC);
 
+
+CREATE TABLE IF NOT EXISTS daily_refills (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    amount_cents BIGINT NOT NULL DEFAULT 100000 CHECK (amount_cents > 0),
+    claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS daily_refills_user_claimed_idx
+    ON daily_refills(user_id, claimed_at DESC);
+
 COMMIT;

@@ -12,8 +12,11 @@ const PUBLIC_DIR = path.join(__dirname, "public");
 const GAMMA = "https://gamma-api.polymarket.com";
 const CLOB = "https://clob.polymarket.com";
 const STARTING_BALANCE_CENTS = 100000;
-const SESSION_DAYS = 30;
+const DAILY_REFILL_CENTS = 100000;
+const DAILY_REFILL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RESET_SECRET = process.env.PASSWORD_RESET_SECRET || "";
+
+const SESSION_DAYS = 30;
 const scryptAsync = promisify(crypto.scrypt);
 
 if (!process.env.DATABASE_URL) {
@@ -224,17 +227,55 @@ async function accountStateForUser(userId) {
     ORDER BY placed_at DESC
   `, [userId]);
 
+  const refillResult = await pool.query(`
+    SELECT
+      COUNT(*)::int AS refill_count,
+      COALESCE(SUM(amount_cents), 0)::bigint AS total_refilled_cents,
+      MAX(claimed_at) AS last_refill_at
+    FROM daily_refills
+    WHERE user_id = $1
+  `, [userId]);
+
+  const refillRow = refillResult.rows[0] || {};
+  const lastRefillAt = refillRow.last_refill_at
+    ? new Date(refillRow.last_refill_at)
+    : null;
+
+  const nextEligibleAt = lastRefillAt
+    ? new Date(lastRefillAt.getTime() + DAILY_REFILL_COOLDOWN_MS)
+    : null;
+
+  const cooldownPassed =
+    !nextEligibleAt ||
+    nextEligibleAt.getTime() <= Date.now();
+
+  const balanceCents = Number(user.balance_cents);
+
   return {
     user: {
       id: Number(user.id),
       username: user.username,
       createdAt: user.created_at
     },
-    bankroll: Number(user.balance_cents) / 100,
-    bets: betsResult.rows.map(dbBetToClient)
+    bankroll: balanceCents / 100,
+    bets: betsResult.rows.map(dbBetToClient),
+    refill: {
+      amount: DAILY_REFILL_CENTS / 100,
+      eligible: balanceCents === 0 && cooldownPassed,
+      refillCount: Number(refillRow.refill_count || 0),
+      totalRefilled:
+        Number(refillRow.total_refilled_cents || 0) / 100,
+      lastRefillAt:
+        lastRefillAt ? lastRefillAt.toISOString() : null,
+      nextEligibleAt:
+        balanceCents === 0 &&
+        nextEligibleAt &&
+        !cooldownPassed
+          ? nextEligibleAt.toISOString()
+          : null
+    }
   };
 }
-
 async function leaderboardRows() {
   const result = await pool.query(`
     SELECT
@@ -641,6 +682,7 @@ async function getMarkets(gameKey = "lol") {
       const market = selectMatchWinnerMarket(event);
       if (!market) return null;
 
+
       const parsed = parseGameMatch(event.title, gameKey);
       const prices = gammaPricesForMarket(market);
       if (!prices) return null;
@@ -771,18 +813,31 @@ async function getMarketById(id) {
 
 
 async function settleMarketForAllUsers(marketId) {
-  const countResult = await pool.query(`
+  const marketKey = String(marketId);
+
+  // IMPORTANT: marketId is the exact Polymarket market the bet was placed on.
+  // A Game 1 market can only settle Game 1 bets; it cannot settle the parent
+  // match, Game 2, totals, etc.
+  const openResult = await pool.query(`
     SELECT COUNT(*)::int AS n
     FROM bets
     WHERE status='OPEN' AND market_id=$1
-  `, [String(marketId)]);
+  `, [marketKey]);
 
-  if (!Number(countResult.rows[0]?.n || 0)) return false;
+  if (!Number(openResult.rows[0]?.n || 0)) {
+    return false;
+  }
 
-  const market = await getMarketById(marketId);
+  const market = await getMarketById(marketKey);
+
+  // Never infer a result from live odds. Wait until Polymarket closes this
+  // exact market.
   if (!market.closed) return false;
 
-  const winner = market.prices.findIndex(x => Number(x) > 0.99);
+  const winner = market.prices.findIndex(
+    price => Number(price) > 0.99
+  );
+
   if (winner < 0) return false;
 
   const client = await pool.connect();
@@ -795,7 +850,7 @@ async function settleMarketForAllUsers(marketId) {
       FROM bets
       WHERE status='OPEN' AND market_id=$1
       FOR UPDATE
-    `, [String(marketId)]);
+    `, [marketKey]);
 
     if (!betsResult.rows.length) {
       await client.query("ROLLBACK");
@@ -844,6 +899,12 @@ async function settleMarketForAllUsers(marketId) {
     }
 
     await client.query("COMMIT");
+
+    console.log(
+      `[MOCKKET] Settled exact market ${marketKey}: ` +
+      `${market.outcomes?.[winner] || `outcome ${winner}`}`
+    );
+
     return true;
   } catch (err) {
     await client.query("ROLLBACK");
@@ -852,7 +913,6 @@ async function settleMarketForAllUsers(marketId) {
     client.release();
   }
 }
-
 async function settleOpenMarkets(limit = 30) {
   const result = await pool.query(`
     SELECT DISTINCT market_id
@@ -934,91 +994,6 @@ const server = http.createServer(async (req, res) => {
           session.token,
           session.maxAgeSeconds
         )
-      });
-    }
-
-    if (url.pathname === "/api/reset-password" && req.method === "POST") {
-      if (!PASSWORD_RESET_SECRET) {
-        return json(res, 503, {
-          error: "Password recovery is not configured on this server."
-        });
-      }
-
-      const body = await readJsonBody(req);
-      const username = String(body.username || "").trim();
-      const recoveryCode = String(body.recoveryCode || "");
-      const newPassword = String(body.newPassword || "");
-
-      if (!username) {
-        return json(res, 400, { error: "Username is required." });
-      }
-
-      if (newPassword.length < 8 || newPassword.length > 200) {
-        return json(res, 400, {
-          error: "New password must be at least 8 characters."
-        });
-      }
-
-      const expected = Buffer.from(PASSWORD_RESET_SECRET, "utf8");
-      const supplied = Buffer.from(recoveryCode, "utf8");
-
-      const validSecret =
-        expected.length === supplied.length &&
-        crypto.timingSafeEqual(expected, supplied);
-
-      if (!validSecret) {
-        return json(res, 401, {
-          error: "Invalid recovery code."
-        });
-      }
-
-      const userResult = await pool.query(`
-        SELECT id
-        FROM users
-        WHERE LOWER(username)=LOWER($1)
-        LIMIT 1
-      `, [username]);
-
-      const user = userResult.rows[0];
-
-      if (!user) {
-        return json(res, 404, {
-          error: "Account not found."
-        });
-      }
-
-      const passwordHash = await hashPassword(newPassword);
-      const client = await pool.connect();
-
-      try {
-        await client.query("BEGIN");
-
-        await client.query(`
-          UPDATE users
-          SET password_hash=$1
-          WHERE id=$2
-        `, [
-          passwordHash,
-          Number(user.id)
-        ]);
-
-        // Force the account to log in again everywhere after reset.
-        await client.query(`
-          DELETE FROM sessions
-          WHERE user_id=$1
-        `, [Number(user.id)]);
-
-        await client.query("COMMIT");
-      } catch (err) {
-        await client.query("ROLLBACK");
-        throw err;
-      } finally {
-        client.release();
-      }
-
-      return json(res, 200, {
-        ok: true,
-        message: "Password reset. You can log in with the new password."
       });
     }
 
@@ -1357,6 +1332,192 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    if (url.pathname === "/api/reset-password" && req.method === "POST") {
+      if (!PASSWORD_RESET_SECRET) {
+        return json(res, 503, {
+          error: "Password recovery is not configured on this server."
+        });
+      }
+
+      const body = await readJsonBody(req);
+      const username = String(body.username || "").trim();
+      const recoveryCode = String(body.recoveryCode || "");
+      const newPassword = String(body.newPassword || "");
+
+      if (!username) {
+        return json(res, 400, { error: "Username is required." });
+      }
+
+      if (newPassword.length < 8 || newPassword.length > 200) {
+        return json(res, 400, {
+          error: "New password must be at least 8 characters."
+        });
+      }
+
+      const expected = Buffer.from(PASSWORD_RESET_SECRET, "utf8");
+      const supplied = Buffer.from(recoveryCode, "utf8");
+
+      const validSecret =
+        expected.length === supplied.length &&
+        crypto.timingSafeEqual(expected, supplied);
+
+      if (!validSecret) {
+        return json(res, 401, {
+          error: "Invalid recovery code."
+        });
+      }
+
+      const userResult = await pool.query(`
+        SELECT id
+        FROM users
+        WHERE LOWER(username)=LOWER($1)
+        LIMIT 1
+      `, [username]);
+
+      const targetUser = userResult.rows[0];
+
+      if (!targetUser) {
+        return json(res, 404, {
+          error: "Account not found."
+        });
+      }
+
+      const passwordHash = await hashPassword(newPassword);
+      const client = await pool.connect();
+
+      try {
+        await client.query("BEGIN");
+
+        await client.query(`
+          UPDATE users
+          SET password_hash=$1
+          WHERE id=$2
+        `, [
+          passwordHash,
+          Number(targetUser.id)
+        ]);
+
+        await client.query(`
+          DELETE FROM sessions
+          WHERE user_id=$1
+        `, [Number(targetUser.id)]);
+
+        await client.query("COMMIT");
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
+
+      return json(res, 200, {
+        ok: true,
+        message: "Password reset. You can log in with the new password."
+      });
+    }
+
+    if (url.pathname === "/api/refill" && req.method === "POST") {
+      const user = await requireUser(req, res);
+      if (!user) return;
+
+      const client = await pool.connect();
+
+      try {
+        await client.query("BEGIN");
+
+        // Lock the account row so two simultaneous clicks cannot both refill.
+        const userResult = await client.query(`
+          SELECT balance_cents
+          FROM users
+          WHERE id=$1
+          FOR UPDATE
+        `, [Number(user.id)]);
+
+        if (!userResult.rows.length) {
+          await client.query("ROLLBACK");
+          return json(res, 404, {
+            error: "Account not found."
+          });
+        }
+
+        const balanceCents =
+          Number(userResult.rows[0].balance_cents);
+
+        if (balanceCents !== 0) {
+          await client.query("ROLLBACK");
+          return json(res, 400, {
+            error:
+              "Daily refill is only available when your balance is exactly $0."
+          });
+        }
+
+        const lastResult = await client.query(`
+          SELECT claimed_at
+          FROM daily_refills
+          WHERE user_id=$1
+          ORDER BY claimed_at DESC
+          LIMIT 1
+        `, [Number(user.id)]);
+
+        const lastClaimed =
+          lastResult.rows[0]?.claimed_at
+            ? new Date(lastResult.rows[0].claimed_at)
+            : null;
+
+        if (
+          lastClaimed &&
+          Date.now() - lastClaimed.getTime() <
+            DAILY_REFILL_COOLDOWN_MS
+        ) {
+          const nextEligibleAt = new Date(
+            lastClaimed.getTime() +
+              DAILY_REFILL_COOLDOWN_MS
+          );
+
+          await client.query("ROLLBACK");
+
+          return json(res, 429, {
+            error: "You already used your daily refill.",
+            nextEligibleAt: nextEligibleAt.toISOString()
+          });
+        }
+
+        await client.query(`
+          UPDATE users
+          SET balance_cents = balance_cents + $1
+          WHERE id=$2
+        `, [
+          DAILY_REFILL_CENTS,
+          Number(user.id)
+        ]);
+
+        await client.query(`
+          INSERT INTO daily_refills(
+            user_id,
+            amount_cents,
+            claimed_at
+          )
+          VALUES($1,$2,NOW())
+        `, [
+          Number(user.id),
+          DAILY_REFILL_CENTS
+        ]);
+
+        await client.query("COMMIT");
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
+
+      return json(
+        res,
+        200,
+        await accountStateForUser(Number(user.id))
+      );
+    }
+
     if (url.pathname === "/api/reset" && req.method === "POST") {
       const user = await requireUser(req, res);
       if (!user) return;
@@ -1449,7 +1610,14 @@ const server = http.createServer(async (req, res) => {
     fs.readFile(filePath, (err, data) => {
       if (err) return send(res, 404, "Not found", "text/plain");
       const ext = path.extname(filePath);
-      const types = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml" };
+      const types = {
+        ".html": "text/html; charset=utf-8",
+        ".css": "text/css; charset=utf-8",
+        ".js": "text/javascript; charset=utf-8",
+        ".svg": "image/svg+xml",
+        ".png": "image/png",
+        ".ico": "image/x-icon"
+      };
       send(res, 200, data, types[ext] || "application/octet-stream");
     });
   } catch (err) {
