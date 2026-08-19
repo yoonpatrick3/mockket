@@ -134,7 +134,58 @@
     .leaderboard-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
     .leader-me{background:rgba(182,255,92,.06)}
 
-    @media(max-width:860px){.layout{grid-template-columns:1fr}.bet-slip{position:static}.stats,.stats-grid{grid-template-columns:repeat(2,1fr)}.weekly-grid{grid-template-columns:1fr}}
+    @media(max-width:860px){
+      .layout{grid-template-columns:1fr}
+      .stats,.stats-grid{grid-template-columns:repeat(2,1fr)}
+      .weekly-grid{grid-template-columns:1fr}
+      .bet-slip{
+        position:fixed;
+        left:12px;
+        right:12px;
+        bottom:12px;
+        top:auto;
+        z-index:1200;
+        max-height:min(72vh,620px);
+        overflow:auto;
+        transform:translateY(calc(100% + 24px));
+        opacity:0;
+        pointer-events:none;
+        transition:transform .2s ease,opacity .2s ease;
+        box-shadow:0 18px 55px rgba(0,0,0,.55);
+      }
+      .bet-slip.mobile-open{
+        transform:translateY(0);
+        opacity:1;
+        pointer-events:auto;
+      }
+      .bet-slip.mobile-open::before{
+        content:"";
+        display:block;
+        width:42px;
+        height:4px;
+        border-radius:999px;
+        background:#343945;
+        margin:0 auto 12px;
+      }
+      .mobile-slip-close{
+        display:block;
+        position:absolute;
+        top:10px;
+        right:12px;
+        border:0;
+        background:transparent;
+        color:var(--muted);
+        font-size:22px;
+        line-height:1;
+        cursor:pointer;
+        padding:4px 6px;
+      }
+      .bet-slip h3{padding-right:34px}
+      body.mobile-slip-open{overflow:hidden}
+    }
+    @media(min-width:861px){
+      .mobile-slip-close{display:none!important}
+    }
   </style>
 </head>
 <body>
@@ -215,7 +266,8 @@
         <div class="market-list" id="markets"><div class="loading">Loading live League of Legends markets…</div></div>
       </main>
 
-      <aside class="bet-slip">
+      <aside class="bet-slip" id="betSlip">
+        <button id="mobileSlipClose" class="mobile-slip-close" type="button" aria-label="Close bet slip">×</button>
         <h3>SIMULATED PICK</h3>
         <div id="slip" class="empty">Pick a matchup outcome to add it here. No real orders can be placed from this app.</div>
       </aside>
@@ -581,6 +633,7 @@ function chooseFrontMatchOutcome(parentId,submarketId,idx){
 
   stakeDraft=25;
   renderSlip();
+  openMobileBetSlip();
 }
 function marketDisplayTitle(sm,fallback){
   if(sm?.bucket==="game" && sm.gameNumber){
@@ -757,6 +810,7 @@ function chooseDetailOutcome(submarketId,idx){
   stakeDraft = 25;
   renderSlip();
   closeMarketDetail();
+  openMobileBetSlip();
 }
 window.pick = (id, idx) => {
   const m = markets.find(x=>x.id===id);
@@ -765,6 +819,24 @@ window.pick = (id, idx) => {
   stakeDraft = 25;
   renderSlip();
 };
+
+function isMobileView(){
+  return window.matchMedia("(max-width: 860px)").matches;
+}
+
+function openMobileBetSlip(){
+  if(!isMobileView()) return;
+  const panel=document.getElementById("betSlip");
+  if(!panel) return;
+  panel.classList.add("mobile-open");
+  document.body.classList.add("mobile-slip-open");
+}
+
+function closeMobileBetSlip(){
+  const panel=document.getElementById("betSlip");
+  if(panel) panel.classList.remove("mobile-open");
+  document.body.classList.remove("mobile-slip-open");
+}
 
 function renderSlip(){
   const el=document.getElementById("slip");
@@ -855,6 +927,7 @@ window.placeFakeBet = async () => {
     selected=null;
     stakeDraft=25;
     renderSlip();
+    closeMobileBetSlip();
   }catch(e){
     alert(e.message);
     if(button) button.disabled=false;
@@ -1642,7 +1715,10 @@ document.querySelectorAll(".tab-btn").forEach(btn=>{
   });
 });
 
-window.addEventListener("resize",()=>requestAnimationFrame(drawPnlChart));
+window.addEventListener("resize",()=>{
+  requestAnimationFrame(drawPnlChart);
+  if(!isMobileView()) closeMobileBetSlip();
+});
 
 document.querySelectorAll(".game-chip").forEach(btn=>{
   btn.addEventListener("click",()=>{
@@ -1651,6 +1727,7 @@ document.querySelectorAll(".game-chip").forEach(btn=>{
     localStorage.setItem(GAME_TAB_KEY,currentGame);
     selected=null;
     renderSlip();
+    closeMobileBetSlip();
     document.querySelectorAll(".game-chip").forEach(x=>x.classList.remove("active"));
     btn.classList.add("active");
     markets=[];
@@ -1659,12 +1736,16 @@ document.querySelectorAll(".game-chip").forEach(btn=>{
   });
 });
 
+document.getElementById("mobileSlipClose").addEventListener("click",closeMobileBetSlip);
 document.getElementById("marketDetailClose").addEventListener("click",closeMarketDetail);
 document.getElementById("marketDetailBackdrop").addEventListener("click",e=>{
   if(e.target.id==="marketDetailBackdrop") closeMarketDetail();
 });
 document.addEventListener("keydown",e=>{
-  if(e.key==="Escape" && detailMarketId) closeMarketDetail();
+  if(e.key==="Escape"){
+    if(detailMarketId) closeMarketDetail();
+    closeMobileBetSlip();
+  }
 });
 
 document.getElementById("refillBtn").addEventListener("click",async()=>{
@@ -1711,6 +1792,7 @@ document.getElementById("reset").onclick=async()=>{
 };
 
 function showAuth(){
+  closeMobileBetSlip();
   closeMarketSocket();
   document.getElementById("appShell").style.display="none";
   document.getElementById("authScreen").style.display="flex";
