@@ -106,6 +106,12 @@
     .market-section h3{font-size:12px;letter-spacing:.08em;color:var(--muted);margin:0 0 9px}
     .market-row{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:13px;margin-bottom:9px}
     .market-row-title{font-size:13px;font-weight:800;margin-bottom:9px}
+    .market-row.resolved-market{border-color:#343a46;background:#0e1014}
+    .resolved-badge{font-size:10px;color:var(--accent);font-weight:900;letter-spacing:.05em;margin-left:8px}
+    .detail-outcome.resolved-outcome{cursor:default;opacity:.62}
+    .detail-outcome.resolved-winner{border-color:var(--accent);opacity:1}
+    .detail-outcome.resolved-winner span{color:var(--accent)}
+
     .detail-outcomes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
     .detail-outcome{border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:11px;border-radius:10px;cursor:pointer;text-align:left}
     .detail-outcome:hover{border-color:#505667}
@@ -657,9 +663,32 @@ function marketDisplayTitle(sm,fallback){
 function renderDetailMarketRow(sm,title){
   if(!sm) return "";
 
+  const resolved=Boolean(sm.closed || sm.mockketResolved);
+  const winnerIndex=Number.isInteger(Number(sm.mockketWinnerIndex))
+    ? Number(sm.mockketWinnerIndex)
+    : (() => {
+        const rounded=(sm.prices||[])
+          .slice(0,2)
+          .map(p=>Math.round(Number(p)*100));
+        if(rounded[0]===100 && rounded[1]===0) return 0;
+        if(rounded[0]===0 && rounded[1]===100) return 1;
+        return -1;
+      })();
+
   const buttons=(sm.outcomes||[]).slice(0,2).map((outcome,idx)=>{
     const p=Number(sm.prices?.[idx]);
     if(!Number.isFinite(p)) return "";
+
+    if(resolved){
+      const winner=idx===winnerIndex;
+      return `<button
+        class="detail-outcome resolved-outcome ${winner?"resolved-winner":""}"
+        type="button"
+        disabled>
+        ${esc(String(outcome))}
+        <span>${Math.round(p*100)}%${winner?" · WINNER":""}</span>
+      </button>`;
+    }
 
     return `<button class="detail-outcome" type="button"
       data-submarket-id="${esc(String(sm.id))}"
@@ -671,12 +700,14 @@ function renderDetailMarketRow(sm,title){
 
   if(!buttons) return "";
 
-  return `<div class="market-row">
-    <div class="market-row-title">${esc(title)}</div>
+  return `<div class="market-row ${resolved?"resolved-market":""}">
+    <div class="market-row-title">
+      ${esc(title)}
+      ${resolved?`<span class="resolved-badge">FINAL</span>`:""}
+    </div>
     <div class="detail-outcomes">${buttons}</div>
   </div>`;
 }
-
 function renderMarketDetail(){
   if(!detailMarketId) return;
 
@@ -1463,7 +1494,7 @@ function removeResolvedSubmarket(parent,resolvedId){
   const em=parent.eventMarkets || {};
   const matchId=String(em.match?.id || parent.id);
 
-  // Only the actual overall match market may close the whole matchup.
+  // The overall match resolving removes the matchup from the front slate.
   if(id===matchId){
     parent.closed=true;
     parent.active=false;
@@ -1477,28 +1508,44 @@ function removeResolvedSubmarket(parent,resolvedId){
       selected=null;
       stakeDraft=25;
       renderSlip();
+      closeMobileBetSlip();
     }
 
     return;
   }
 
-  // Child markets resolve independently. Remove only that exact game/map
-  // or total from the detail view and leave every other market untouched.
-  if(Array.isArray(em.games)){
-    em.games=em.games.filter(sm=>String(sm.id)!==id);
-  }
+  // Individual Game/Map/Total markets stay visible as historical results.
+  const all=[
+    ...(em.games||[]),
+    ...(em.totals||[])
+  ];
 
-  if(Array.isArray(em.totals)){
-    em.totals=em.totals.filter(sm=>String(sm.id)!==id);
+  const resolved=all.find(sm=>String(sm.id)===id);
+
+  if(resolved){
+    resolved.closed=true;
+    resolved.active=false;
+
+    const rounded=(resolved.prices||[])
+      .slice(0,2)
+      .map(p=>Math.round(Number(p)*100));
+
+    if(rounded[0]===100 && rounded[1]===0){
+      resolved.mockketWinnerIndex=0;
+      resolved.prices=[1,0];
+    }else if(rounded[0]===0 && rounded[1]===100){
+      resolved.mockketWinnerIndex=1;
+      resolved.prices=[0,1];
+    }
   }
 
   if(selected && String(selected.market?.id)===id){
     selected=null;
     stakeDraft=25;
     renderSlip();
+    closeMobileBetSlip();
   }
 }
-
 function handleMarketSocketMessage(raw){
   if(raw==="PONG") return;
 

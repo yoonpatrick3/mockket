@@ -15,6 +15,30 @@ const STARTING_BALANCE_CENTS = 100000;
 const DAILY_REFILL_CENTS = 100000;
 const DAILY_REFILL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RESET_SECRET = process.env.PASSWORD_RESET_SECRET || "";
+const EARLY_SETTLEMENT_MIN_AGE_MS = 2 * 60 * 60 * 1000;
+const EARLY_SETTLEMENT_STABLE_MS = 5 * 60 * 1000;
+
+// marketId -> { signature, winnerIndex, since }
+const earlySettlementCandidates = new Map();
+
+let mockketResolutionTablePromise = null;
+function ensureMockketResolutionTable() {
+  if (!mockketResolutionTablePromise) {
+    mockketResolutionTablePromise = pool.query(`
+      CREATE TABLE IF NOT EXISTS mockket_market_resolutions (
+        market_id TEXT PRIMARY KEY,
+        winner_index INTEGER NOT NULL CHECK (winner_index IN (0,1)),
+        settlement_source TEXT NOT NULL DEFAULT 'mockket_100_0',
+        settled_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `).catch(err => {
+      mockketResolutionTablePromise = null;
+      throw err;
+    });
+  }
+  return mockketResolutionTablePromise;
+}
+
 
 const SESSION_DAYS = 30;
 const scryptAsync = promisify(crypto.scrypt);
@@ -530,10 +554,17 @@ function isActualGameMatchEvent(event, gameKey) {
 
 
 function normalizeEventSubMarket(m, parsed, gameKey) {
-  if (!m || m.closed) return null;
+  if (!m) return null;
 
   const outcomes = parseMaybeJson(m.outcomes);
-  const prices = gammaPricesForMarket(m);
+  const rawPrices = parseMaybeJson(m.outcomePrices).map(Number);
+  const prices =
+    rawPrices.length >= 2 &&
+    rawPrices.slice(0,2).every(
+      p => Number.isFinite(p) && p >= 0 && p <= 1
+    )
+      ? rawPrices.slice(0,2)
+      : gammaPricesForMarket(m);
   const tokenIds = tokenIdsForMarket(m);
 
   if (outcomes.length < 2 || !prices || tokenIds.length < 2) return null;
@@ -660,6 +691,40 @@ async function getMarkets(gameKey = "lol") {
   const config = GAME_CONFIG[gameKey];
   if (!config) throw new Error("Unsupported game");
 
+  await ensureMockketResolutionTable();
+  const resolvedResult = await pool.query(`
+    SELECT market_id, winner_index, settlement_source, settled_at
+    FROM mockket_market_resolutions
+  `);
+
+  const mockketResolved = new Map(
+    resolvedResult.rows.map(row => [
+      String(row.market_id),
+      {
+        winnerIndex: Number(row.winner_index),
+        settlementSource: row.settlement_source,
+        settledAt: row.settled_at
+      }
+    ])
+  );
+
+  const applyStoredResolution = sm => {
+    if (!sm) return sm;
+    const stored = mockketResolved.get(String(sm.id));
+    if (!stored) return sm;
+
+    sm.mockketResolved = true;
+    sm.mockketWinnerIndex = stored.winnerIndex;
+    sm.mockketSettlementSource = stored.settlementSource;
+    sm.mockketSettledAt = stored.settledAt;
+    sm.closed = true;
+    sm.active = false;
+
+    // Force the historical result to render exactly as 100% / 0%.
+    sm.prices = stored.winnerIndex === 0 ? [1, 0] : [0, 1];
+    return sm;
+  };
+
   const slugs = await fetchGamePageSlugs(gameKey);
   if (!slugs.length) throw new Error(`Could not discover ${config.name} matches from Polymarket page`);
 
@@ -689,12 +754,17 @@ async function getMarkets(gameKey = "lol") {
 
       const eventMarkets = buildEventMarkets(event, parsed, gameKey);
 
+      applyStoredResolution(eventMarkets.match);
+      (eventMarkets.games || []).forEach(applyStoredResolution);
+      (eventMarkets.totals || []).forEach(applyStoredResolution);
+
       if (!eventMarkets.match) {
         eventMarkets.match = {
           ...normalizeEventSubMarket(market, parsed, gameKey),
           bucket: "match",
           gameNumber: 0
         };
+        applyStoredResolution(eventMarkets.match);
       }
 
       const startTime =
@@ -724,8 +794,12 @@ async function getMarkets(gameKey = "lol") {
         conditionId: String(market.conditionId || market.condition_id || ""),
         eventMarkets,
         startTime,
-        active: Boolean(event.active ?? market.active),
-        closed: Boolean(event.closed ?? market.closed),
+        active:
+          !eventMarkets.match?.closed &&
+          Boolean(event.active ?? market.active),
+        closed:
+          Boolean(event.closed ?? market.closed) ||
+          Boolean(eventMarkets.match?.closed),
         volume: Number(event.volume ?? market.volumeNum ?? market.volume ?? 0),
         liquidity: Number(event.liquidity ?? market.liquidityNum ?? market.liquidity ?? 0),
         image: event.image || event.icon || market.image || market.icon || null,
@@ -812,33 +886,43 @@ async function getMarketById(id) {
 }
 
 
-async function settleMarketForAllUsers(marketId) {
-  const marketKey = String(marketId);
+async function displayedPricesForMarket(market) {
+  const tokenIds = Array.isArray(market.tokenIds)
+    ? market.tokenIds.map(String).slice(0, 2)
+    : [];
 
-  // IMPORTANT: marketId is the exact Polymarket market the bet was placed on.
-  // A Game 1 market can only settle Game 1 bets; it cannot settle the parent
-  // match, Game 2, totals, etc.
-  const openResult = await pool.query(`
-    SELECT COUNT(*)::int AS n
-    FROM bets
-    WHERE status='OPEN' AND market_id=$1
-  `, [marketKey]);
+  if (tokenIds.length === 2) {
+    const midpoints = await fetchLiveMidpoints(tokenIds);
 
-  if (!Number(openResult.rows[0]?.n || 0)) {
-    return false;
+    const live = tokenIds.map(id => Number(midpoints?.[id]));
+    if (
+      live.length === 2 &&
+      live.every(p => Number.isFinite(p) && p >= 0 && p <= 1)
+    ) {
+      return live.map(p => Math.round(p * 100));
+    }
   }
 
-  const market = await getMarketById(marketKey);
+  const fallback = Array.isArray(market.prices)
+    ? market.prices.slice(0, 2).map(Number)
+    : [];
 
-  // Never infer a result from live odds. Wait until Polymarket closes this
-  // exact market.
-  if (!market.closed) return false;
+  if (
+    fallback.length === 2 &&
+    fallback.every(p => Number.isFinite(p))
+  ) {
+    return fallback.map(p => Math.round(p * 100));
+  }
 
-  const winner = market.prices.findIndex(
-    price => Number(price) > 0.99
-  );
+  return [];
+}
 
-  if (winner < 0) return false;
+async function settleExactMarketWithWinner(
+  marketKey,
+  winner,
+  settlementSource
+) {
+  await ensureMockketResolutionTable();
 
   const client = await pool.connect();
 
@@ -851,11 +935,6 @@ async function settleMarketForAllUsers(marketId) {
       WHERE status='OPEN' AND market_id=$1
       FOR UPDATE
     `, [marketKey]);
-
-    if (!betsResult.rows.length) {
-      await client.query("ROLLBACK");
-      return false;
-    }
 
     const now = new Date().toISOString();
 
@@ -898,20 +977,160 @@ async function settleMarketForAllUsers(marketId) {
       }
     }
 
+    await client.query(`
+      INSERT INTO mockket_market_resolutions(
+        market_id,
+        winner_index,
+        settlement_source,
+        settled_at
+      )
+      VALUES($1,$2,$3,NOW())
+      ON CONFLICT (market_id)
+      DO UPDATE SET
+        winner_index=EXCLUDED.winner_index,
+        settlement_source=EXCLUDED.settlement_source,
+        settled_at=EXCLUDED.settled_at
+    `, [
+      marketKey,
+      winner,
+      settlementSource
+    ]);
+
     await client.query("COMMIT");
-
-    console.log(
-      `[MOCKKET] Settled exact market ${marketKey}: ` +
-      `${market.outcomes?.[winner] || `outcome ${winner}`}`
-    );
-
-    return true;
+    return betsResult.rows.length;
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
   } finally {
     client.release();
   }
+}
+
+async function settleMarketForAllUsers(marketId) {
+  const marketKey = String(marketId);
+
+  const openResult = await pool.query(`
+    SELECT
+      COUNT(*)::int AS n,
+      MIN(match_start) AS match_start
+    FROM bets
+    WHERE status='OPEN' AND market_id=$1
+  `, [marketKey]);
+
+  const openCount = Number(openResult.rows[0]?.n || 0);
+
+  if (!openCount) {
+    earlySettlementCandidates.delete(marketKey);
+    return false;
+  }
+
+  const market = await getMarketById(marketKey);
+
+  // Official Polymarket resolution still settles immediately.
+  if (market.closed) {
+    const winner = market.prices.findIndex(
+      price => Number(price) > 0.99
+    );
+
+    if (winner < 0) return false;
+
+    await settleExactMarketWithWinner(
+      marketKey,
+      winner,
+      "polymarket"
+    );
+
+    earlySettlementCandidates.delete(marketKey);
+
+    console.log(
+      `[MOCKKET] Officially settled exact market ${marketKey}: ` +
+      `${market.outcomes?.[winner] || `outcome ${winner}`}`
+    );
+
+    return true;
+  }
+
+  // MOCKKET early settlement:
+  // 1. the event start stored on the bet is >2 hours ago
+  // 2. the percentages MOCKKET would DISPLAY are exactly 100% / 0%
+  // 3. that displayed 100/0 pair does not change for 5 minutes
+  const rawStart =
+    openResult.rows[0]?.match_start ||
+    market.startTime ||
+    null;
+
+  const startMs = rawStart
+    ? new Date(rawStart).getTime()
+    : NaN;
+
+  if (
+    !Number.isFinite(startMs) ||
+    Date.now() - startMs < EARLY_SETTLEMENT_MIN_AGE_MS
+  ) {
+    earlySettlementCandidates.delete(marketKey);
+    return false;
+  }
+
+  const displayed = await displayedPricesForMarket(market);
+
+  if (displayed.length !== 2) {
+    earlySettlementCandidates.delete(marketKey);
+    return false;
+  }
+
+  let winner = -1;
+
+  if (displayed[0] === 100 && displayed[1] === 0) {
+    winner = 0;
+  } else if (displayed[0] === 0 && displayed[1] === 100) {
+    winner = 1;
+  }
+
+  if (winner < 0) {
+    earlySettlementCandidates.delete(marketKey);
+    return false;
+  }
+
+  const signature = `${displayed[0]}:${displayed[1]}`;
+  const existing = earlySettlementCandidates.get(marketKey);
+
+  if (
+    !existing ||
+    existing.signature !== signature ||
+    existing.winnerIndex !== winner
+  ) {
+    earlySettlementCandidates.set(marketKey, {
+      signature,
+      winnerIndex: winner,
+      since: Date.now()
+    });
+
+    console.log(
+      `[MOCKKET] 100/0 candidate ${marketKey}: ${signature}. ` +
+      `Starting 5-minute stability clock.`
+    );
+
+    return false;
+  }
+
+  if (Date.now() - existing.since < EARLY_SETTLEMENT_STABLE_MS) {
+    return false;
+  }
+
+  await settleExactMarketWithWinner(
+    marketKey,
+    winner,
+    "mockket_100_0"
+  );
+
+  earlySettlementCandidates.delete(marketKey);
+
+  console.log(
+    `[MOCKKET] EARLY SETTLED exact market ${marketKey} after ` +
+    `5 minutes unchanged at ${signature}.`
+  );
+
+  return true;
 }
 async function settleOpenMarkets(limit = 30) {
   const result = await pool.query(`
@@ -1073,6 +1292,21 @@ const server = http.createServer(async (req, res) => {
       const tokenIds = Array.isArray(body.tokenIds)
         ? body.tokenIds.map(String).slice(0, 2)
         : [];
+
+      await ensureMockketResolutionTable();
+
+      const mockketResolvedCheck = await pool.query(`
+        SELECT winner_index
+        FROM mockket_market_resolutions
+        WHERE market_id=$1
+        LIMIT 1
+      `, [marketId]);
+
+      if (mockketResolvedCheck.rows.length) {
+        return json(res, 409, {
+          error: "That market has already been settled by MOCKKET."
+        });
+      }
 
       if (
         !marketId ||
