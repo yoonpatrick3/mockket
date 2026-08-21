@@ -465,17 +465,23 @@ function renderRefill(){
   note.style.display="none";
   button.disabled=false;
 
-  // The bailout only appears after the account is completely busted
-  // AND there are no pending/open bets left.
   const pendingBets=state.bets.filter(b=>b.status==="OPEN").length;
 
-  if(
-    Number(state.bankroll)!==0 ||
-    pendingBets>0 ||
-    !state.refill
-  ) return;
+  // Refill UI only matters once the bankroll is actually at $0.
+  if(Number(state.bankroll)!==0 || !state.refill) return;
 
   button.style.display="block";
+
+  // If money is still tied up in unresolved bets, explain that specifically.
+  if(pendingBets>0){
+    button.disabled=true;
+    button.textContent="Daily refill unavailable";
+    note.style.display="block";
+    note.textContent=
+      `You still have ${pendingBets} pending bet${pendingBets===1?"":"s"}. ` +
+      `Refill unlocks after ${pendingBets===1?"it resolves":"they all resolve"}.`;
+    return;
+  }
 
   if(state.refill.eligible){
     button.disabled=false;
@@ -486,7 +492,7 @@ function renderRefill(){
   }
 
   button.disabled=true;
-  button.textContent="Daily refill already used";
+  button.textContent="Daily refill unavailable";
 
   if(state.refill.nextEligibleAt){
     const next=new Date(state.refill.nextEligibleAt);
@@ -497,6 +503,9 @@ function renderRefill(){
       hour:"numeric",
       minute:"2-digit"
     })}.`;
+  }else{
+    note.style.display="block";
+    note.textContent="Daily refill is not available yet.";
   }
 }
 
