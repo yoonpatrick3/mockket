@@ -251,6 +251,10 @@ async function accountStateForUser(userId) {
     ORDER BY placed_at DESC
   `, [userId]);
 
+  const openBetCount = betsResult.rows.filter(
+    row => String(row.status) === "OPEN"
+  ).length;
+
   const refillResult = await pool.query(`
     SELECT
       COUNT(*)::int AS refill_count,
@@ -285,7 +289,12 @@ async function accountStateForUser(userId) {
     bets: betsResult.rows.map(dbBetToClient),
     refill: {
       amount: DAILY_REFILL_CENTS / 100,
-      eligible: balanceCents === 0 && cooldownPassed,
+      eligible:
+        balanceCents === 0 &&
+        openBetCount === 0 &&
+        cooldownPassed,
+      blockedByPendingBets: openBetCount > 0,
+      openBetCount,
       refillCount: Number(refillRow.refill_count || 0),
       totalRefilled:
         Number(refillRow.total_refilled_cents || 0) / 100,
@@ -1685,6 +1694,22 @@ const server = http.createServer(async (req, res) => {
           return json(res, 400, {
             error:
               "Daily refill is only available when your balance is exactly $0."
+          });
+        }
+
+        const pendingResult = await client.query(`
+          SELECT COUNT(*)::int AS n
+          FROM bets
+          WHERE user_id=$1 AND status='OPEN'
+        `, [Number(user.id)]);
+
+        const pendingCount = Number(pendingResult.rows[0]?.n || 0);
+
+        if (pendingCount > 0) {
+          await client.query("ROLLBACK");
+          return json(res, 400, {
+            error:
+              "Daily refill is only available when you have no pending bets."
           });
         }
 

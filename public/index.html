@@ -465,8 +465,15 @@ function renderRefill(){
   note.style.display="none";
   button.disabled=false;
 
-  // The bailout only appears after the account is completely busted.
-  if(Number(state.bankroll)!==0 || !state.refill) return;
+  // The bailout only appears after the account is completely busted
+  // AND there are no pending/open bets left.
+  const pendingBets=state.bets.filter(b=>b.status==="OPEN").length;
+
+  if(
+    Number(state.bankroll)!==0 ||
+    pendingBets>0 ||
+    !state.refill
+  ) return;
 
   button.style.display="block";
 
@@ -1832,7 +1839,11 @@ document.addEventListener("keydown",e=>{
 
 document.getElementById("refillBtn").addEventListener("click",async()=>{
   const button=document.getElementById("refillBtn");
-  if(!state.refill?.eligible || Number(state.bankroll)!==0) return;
+  if(
+    !state.refill?.eligible ||
+    Number(state.bankroll)!==0 ||
+    state.bets.some(b=>b.status==="OPEN")
+  ) return;
 
   if(!confirm(
     "Claim another $1,000 of simulated money? Your existing losses, record, ROI, and bet history will NOT be reset."
