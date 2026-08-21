@@ -1532,6 +1532,11 @@ const server = http.createServer(async (req, res) => {
           [Number(user.id)]
         );
 
+        await client.query(
+          "DELETE FROM daily_refills WHERE user_id=$1",
+          [Number(user.id)]
+        );
+
         await client.query(`
           UPDATE users
           SET balance_cents=$1
