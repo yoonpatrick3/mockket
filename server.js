@@ -1043,8 +1043,9 @@ async function settleMarketForAllUsers(marketId) {
     earlySettlementCandidates.delete(marketKey);
 
     console.log(
-      `[MOCKKET] Officially settled exact market ${marketKey}: ` +
-      `${market.outcomes?.[winner] || `outcome ${winner}`}`
+      `[MOCKKET] OFFICIAL SETTLEMENT ${marketKey} | ` +
+      `${market.question || "Unknown market"} | ` +
+      `Winner: ${market.outcomes?.[winner] || `outcome ${winner}`}`
     );
 
     return true;
@@ -1126,7 +1127,9 @@ async function settleMarketForAllUsers(marketId) {
   earlySettlementCandidates.delete(marketKey);
 
   console.log(
-    `[MOCKKET] EARLY SETTLED exact market ${marketKey} after ` +
+    `[MOCKKET] EARLY SETTLED ${marketKey} | ` +
+    `${market.question || "Unknown market"} | ` +
+    `Winner: ${market.outcomes?.[winner] || `outcome ${winner}`} | ` +
     `5 minutes unchanged at ${signature}.`
   );
 

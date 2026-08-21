@@ -1431,6 +1431,39 @@ function bestMidpointFromBook(msg){
   return null;
 }
 
+function updateMarketPriceDom(parent,market){
+  if(!parent || !market) return;
+
+  const marketId=String(market.id);
+  const prices=(market.prices||[]).slice(0,2);
+
+  // Main slate match-winner buttons.
+  document.querySelectorAll(
+    `.front-match-outcome[data-submarket-id="${CSS.escape(marketId)}"]`
+  ).forEach(btn=>{
+    const idx=Number(btn.dataset.outcomeIndex);
+    const p=Number(prices[idx]);
+    const span=btn.querySelector("span");
+
+    if(span && Number.isFinite(p)){
+      span.textContent=`${Math.round(p*100)}% · ${decimalOdds(p)}`;
+    }
+  });
+
+  // Match-detail buttons.
+  document.querySelectorAll(
+    `.detail-outcome[data-submarket-id="${CSS.escape(marketId)}"]`
+  ).forEach(btn=>{
+    const idx=Number(btn.dataset.outcomeIndex);
+    const p=Number(prices[idx]);
+    const span=btn.querySelector("span");
+
+    if(span && Number.isFinite(p)){
+      span.textContent=`${Math.round(p*100)}% · ${decimalOdds(p)}`;
+    }
+  });
+}
+
 function updateMarketTokenPrice(assetId, price){
   const mapping=tokenToMarket.get(String(assetId));
   if(!mapping) return;
@@ -1469,8 +1502,10 @@ function updateMarketTokenPrice(assetId, price){
     updateSelectedSlipPrice();
   }
 
-  renderMarkets();
-  if(detailMarketId===String(parent.id)) renderMarketDetail();
+  // Do NOT rerender the entire slate/modal on every price tick.
+  // Replacing those buttons while the user is clicking them causes clicks
+  // to get swallowed. Update only the visible price text in place.
+  updateMarketPriceDom(parent,market);
 }
 async function settleFromResolution(msg){
   const assets=Array.isArray(msg?.assets_ids) ? msg.assets_ids.map(String) : [];
