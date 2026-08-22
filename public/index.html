@@ -188,6 +188,17 @@
       }
       .bet-slip h3{padding-right:34px}
       body.mobile-slip-open{overflow:hidden}
+      .bet-history-scroll{
+        overflow-x:auto;
+        -webkit-overflow-scrolling:touch;
+      }
+      .bet-history-scroll table{min-width:900px}
+      .bet-history-scroll th,
+      .bet-history-scroll td{white-space:nowrap}
+      .bet-history-scroll td:nth-child(3){
+        white-space:normal;
+        min-width:220px;
+      }
     }
     @media(min-width:861px){
       .mobile-slip-close{display:none!important}
@@ -325,7 +336,7 @@
       <h2>All simulated bets</h2>
       <button class="ghost" id="reset">Reset simulator</button>
     </div>
-    <div class="history">
+    <div class="history bet-history-scroll">
       <table>
         <thead><tr><th style="width:32px"></th><th>Placed</th><th>Match</th><th>Pick</th><th>Stake</th><th>Avg Entry</th><th>Potential</th><th>Status</th><th>P/L</th></tr></thead>
         <tbody id="history"></tbody>
@@ -1883,8 +1894,19 @@ document.getElementById("refillBtn").addEventListener("click",async()=>{
 
 document.getElementById("reset").onclick=async()=>{
   if(!confirm("Reset your account to $1,000 and erase all of your simulated-bet history?")) return;
+
+  const resetSecret=prompt("Enter the MOCKKET recovery code to reset the simulator:");
+  if(resetSecret===null) return;
+  if(!resetSecret){
+    alert("Recovery code is required.");
+    return;
+  }
+
   try{
-    const data=await apiJson("/api/reset",{method:"POST",body:"{}"});
+    const data=await apiJson("/api/reset",{
+      method:"POST",
+      body:JSON.stringify({resetSecret})
+    });
     selected=null;
     stakeDraft=25;
     applyAccountState(data);

@@ -1784,6 +1784,28 @@ const server = http.createServer(async (req, res) => {
       const user = await requireUser(req, res);
       if (!user) return;
 
+      if (!PASSWORD_RESET_SECRET) {
+        return json(res, 503, {
+          error: "Simulator reset is not configured on this server."
+        });
+      }
+
+      const body = await readJsonBody(req);
+      const resetSecret = String(body.resetSecret || "");
+
+      const expected = Buffer.from(PASSWORD_RESET_SECRET, "utf8");
+      const supplied = Buffer.from(resetSecret, "utf8");
+
+      const validSecret =
+        expected.length === supplied.length &&
+        crypto.timingSafeEqual(expected, supplied);
+
+      if (!validSecret) {
+        return json(res, 401, {
+          error: "Invalid recovery code."
+        });
+      }
+
       const client = await pool.connect();
 
       try {
