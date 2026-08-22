@@ -647,7 +647,7 @@ function chooseFrontMatchOutcome(parentId,submarketId,idx){
   const bettingMarket={
     ...parent,
     id:String(matchMarket.id || parent.id),
-    question:matchMarket.question || parent.question,
+    question:betHistoryQuestion(parent,matchMarket,"Match winner"),
     outcomes:matchMarket.outcomes || parent.outcomes,
     prices:matchMarket.prices || parent.prices,
     tokenIds:matchMarket.tokenIds || parent.tokenIds,
@@ -668,6 +668,21 @@ function chooseFrontMatchOutcome(parentId,submarketId,idx){
   renderSlip();
   openMobileBetSlip();
 }
+function betHistoryQuestion(parent,sm,label){
+  const teamA=String(parent?.teamA || "").trim();
+  const teamB=String(parent?.teamB || "").trim();
+  const matchup=(teamA && teamB)
+    ? `${teamA} vs ${teamB}${parent?.bestOf ? ` (${parent.bestOf})` : ""}`
+    : String(parent?.question || sm?.question || "Market");
+
+  const marketLabel=String(
+    label ||
+    marketDisplayTitle(sm,"Match winner")
+  ).trim();
+
+  return `${matchup} - ${marketLabel}`;
+}
+
 function marketDisplayTitle(sm,fallback){
   if(sm?.bucket==="game" && sm.gameNumber){
     const unit=sm.unitLabel || (currentGame==="valorant" ? "Map" : "Game");
@@ -848,7 +863,11 @@ function chooseDetailOutcome(submarketId,idx){
   const bettingMarket={
     ...parent,
     id:String(sm.id),
-    question:sm.question || parent.question,
+    question:betHistoryQuestion(
+      parent,
+      sm,
+      marketDisplayTitle(sm,"Match winner")
+    ),
     outcomes:sm.outcomes,
     prices:sm.prices,
     tokenIds:sm.tokenIds,
