@@ -4,9 +4,10 @@
   "private": true,
   "description": "Live esports market simulator using fake money and real market prices.",
   "scripts": {
-	"start": "node server.js",
-	"dev": "node --env-file=.env server.js"
-	},
+    "migrate:run-history": "node ensure-run-history.js",
+    "start": "node ensure-run-history.js && node server.js",
+    "dev": "node --env-file=.env ensure-run-history.js && node --env-file=.env server.js"
+  },
   "engines": {
     "node": ">=18"
   },
