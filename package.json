@@ -5,8 +5,8 @@
   "description": "Live esports market simulator using fake money and real market prices.",
   "scripts": {
     "migrate:run-history": "node ensure-run-history.js",
-    "start": "node ensure-run-history.js && node -r ./run-history-runtime.js server.js",
-    "dev": "node --env-file=.env ensure-run-history.js && node --env-file=.env -r ./run-history-runtime.js server.js"
+    "start": "node ensure-run-history.js && node -r ./run-history-runtime.js -r ./game-loop-runtime.js server.js",
+    "dev": "node --env-file=.env ensure-run-history.js && node --env-file=.env -r ./run-history-runtime.js -r ./game-loop-runtime.js server.js"
   },
   "engines": {
     "node": ">=18"
