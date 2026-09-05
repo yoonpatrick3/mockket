@@ -7,6 +7,8 @@
     .pnl-chart-tooltip .tip-meta{color:#9298a8;margin-top:3px}
     #pnlChart{cursor:crosshair}
     .game-date-cell{white-space:nowrap}
+    .match-open-stake{display:inline-flex;align-items:center;gap:6px;margin:-3px 0 12px;padding:6px 9px;border:1px solid rgba(182,255,92,.28);background:rgba(182,255,92,.07);border-radius:8px;color:#b6ff5c;font-size:11px;font-weight:800}
+    .match-open-stake span{color:#9298a8;font-weight:600}
   `;
   document.head.appendChild(style);
 
@@ -84,6 +86,24 @@
     canvas.addEventListener("mouseleave",()=>{tooltip.style.display="none";});
   }
 
+  function normalizeMatchup(s){return String(s||"").toLowerCase().replace(/\s+/g," ").trim();}
+  function betMatchup(question){return normalizeMatchup(String(question||"").split(/\s+-\s+(?:match winner|game \d+ winner|map \d+ winner|total games|total maps)/i)[0]);}
+  function enhanceMarketCards(){
+    const open=(state.bets||[]).filter(b=>b.status==="OPEN");
+    document.querySelectorAll(".match-card").forEach(card=>{
+      const q=card.querySelector(".q");
+      const date=card.querySelector(".match-date");
+      if(!q||!date) return;
+      const matchup=normalizeMatchup(q.textContent);
+      const matching=open.filter(b=>betMatchup(b.question)===matchup);
+      const total=matching.reduce((sum,b)=>sum+Number(b.stake||0),0);
+      let badge=card.querySelector(".match-open-stake");
+      if(total<=0){badge?.remove();return;}
+      if(!badge){badge=document.createElement("div");badge.className="match-open-stake";date.after(badge);}
+      badge.innerHTML=`YOUR OPEN BETS · ${fmt(total)} <span>${matching.length} ${matching.length===1?"bet":"bets"}</span>`;
+    });
+  }
+
   function enhanceHistoryTable(){
     const body=document.getElementById("history");
     const table=body?.closest("table");
@@ -120,9 +140,11 @@
     table.style.minWidth="1040px";
   }
 
-  function refreshEnhancements(){installChartTooltip();enhanceHistoryTable();}
+  function refreshEnhancements(){installChartTooltip();enhanceHistoryTable();enhanceMarketCards();}
   const observer=new MutationObserver(()=>refreshEnhancements());
   const history=document.getElementById("history");
   if(history) observer.observe(history,{childList:true,subtree:true});
+  const marketsEl=document.getElementById("markets");
+  if(marketsEl) observer.observe(marketsEl,{childList:true,subtree:true});
   refreshEnhancements();
 })();
