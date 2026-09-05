@@ -7,8 +7,12 @@
     .pnl-chart-tooltip .tip-meta{color:#9298a8;margin-top:3px}
     #pnlChart{cursor:crosshair}
     .game-date-cell{white-space:nowrap}
-    .match-open-stake{display:inline-flex;align-items:center;gap:6px;margin:-3px 0 12px;padding:6px 9px;border:1px solid rgba(182,255,92,.28);background:rgba(182,255,92,.07);border-radius:8px;color:#b6ff5c;font-size:11px;font-weight:800}
-    .match-open-stake span{color:#9298a8;font-weight:600}
+    .match-open-stake{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:-3px 0 12px;padding:7px 9px;border:1px solid rgba(182,255,92,.28);background:rgba(182,255,92,.07);border-radius:8px;color:#b6ff5c;font-size:11px;font-weight:800}
+    .match-open-stake .open-bet-label{color:#9298a8;font-weight:700}
+    .match-open-stake .open-bet-pick{color:#f4f6fb;font-weight:800}
+    .market-open-position{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:0 0 9px;padding:6px 8px;border-radius:8px;background:rgba(182,255,92,.07);border:1px solid rgba(182,255,92,.22);font-size:11px}
+    .market-open-position .open-bet-label{color:#9298a8;font-weight:700}
+    .market-open-position .open-bet-pick{color:#b6ff5c;font-weight:900}
   `;
   document.head.appendChild(style);
 
@@ -88,6 +92,20 @@
 
   function normalizeMatchup(s){return String(s||"").toLowerCase().replace(/\s+/g," ").trim();}
   function betMatchup(question){return normalizeMatchup(String(question||"").split(/\s+-\s+(?:match winner|game \d+ winner|map \d+ winner|total games|total maps)/i)[0]);}
+  function groupedPicks(bets){
+    const picks=new Map();
+    bets.forEach(b=>{
+      const key=String(b.outcome||"Pick");
+      picks.set(key,(picks.get(key)||0)+Number(b.stake||0));
+    });
+    return [...picks.entries()];
+  }
+  function picksMarkup(bets){
+    return groupedPicks(bets)
+      .map(([outcome,stake])=>`<span class="open-bet-pick">${esc(outcome)} ${fmt(stake)}</span>`)
+      .join("");
+  }
+
   function enhanceMarketCards(){
     const open=(state.bets||[]).filter(b=>b.status==="OPEN");
     document.querySelectorAll(".match-card").forEach(card=>{
@@ -96,10 +114,10 @@
       if(!q||!date) return;
       const matchup=normalizeMatchup(q.textContent);
       const matching=open.filter(b=>betMatchup(b.question)===matchup);
-      const total=matching.reduce((sum,b)=>sum+Number(b.stake||0),0);
       let badge=card.querySelector(".match-open-stake");
-      if(total<=0){badge?.remove();return;}
-      const markup=`YOUR OPEN BETS · ${fmt(total)} <span>${matching.length} ${matching.length===1?"bet":"bets"}</span>`;
+      if(!matching.length){badge?.remove();return;}
+      const total=matching.reduce((sum,b)=>sum+Number(b.stake||0),0);
+      const markup=`<span class="open-bet-label">YOUR OPEN BETS · ${fmt(total)}</span>${picksMarkup(matching)}`;
       if(!badge){
         badge=document.createElement("div");
         badge.className="match-open-stake";
@@ -107,6 +125,28 @@
         date.after(badge);
       }else if(badge.innerHTML!==markup){
         badge.innerHTML=markup;
+      }
+    });
+  }
+
+  function enhanceDetailMarkets(){
+    const open=(state.bets||[]).filter(b=>b.status==="OPEN");
+    document.querySelectorAll("#marketDetailBody .market-row").forEach(row=>{
+      const marketId=row.querySelector(".detail-outcome[data-submarket-id]")?.dataset.submarketId;
+      if(!marketId) return;
+      const matching=open.filter(b=>String(b.marketId)===String(marketId));
+      let position=row.querySelector(".market-open-position");
+      if(!matching.length){position?.remove();return;}
+      const total=matching.reduce((sum,b)=>sum+Number(b.stake||0),0);
+      const markup=`<span class="open-bet-label">YOUR BET · ${fmt(total)}</span>${picksMarkup(matching)}`;
+      if(!position){
+        position=document.createElement("div");
+        position.className="market-open-position";
+        const title=row.querySelector(".market-row-title");
+        title?.after(position);
+        position.innerHTML=markup;
+      }else if(position.innerHTML!==markup){
+        position.innerHTML=markup;
       }
     });
   }
@@ -147,11 +187,13 @@
     table.style.minWidth="1040px";
   }
 
-  function refreshEnhancements(){installChartTooltip();enhanceHistoryTable();enhanceMarketCards();}
+  function refreshEnhancements(){installChartTooltip();enhanceHistoryTable();enhanceMarketCards();enhanceDetailMarkets();}
   const observer=new MutationObserver(()=>refreshEnhancements());
   const history=document.getElementById("history");
   if(history) observer.observe(history,{childList:true,subtree:true});
   const marketsEl=document.getElementById("markets");
   if(marketsEl) observer.observe(marketsEl,{childList:true,subtree:false});
+  const detailBody=document.getElementById("marketDetailBody");
+  if(detailBody) observer.observe(detailBody,{childList:true,subtree:true});
   refreshEnhancements();
 })();
