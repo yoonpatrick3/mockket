@@ -99,8 +99,15 @@
       const total=matching.reduce((sum,b)=>sum+Number(b.stake||0),0);
       let badge=card.querySelector(".match-open-stake");
       if(total<=0){badge?.remove();return;}
-      if(!badge){badge=document.createElement("div");badge.className="match-open-stake";date.after(badge);}
-      badge.innerHTML=`YOUR OPEN BETS · ${fmt(total)} <span>${matching.length} ${matching.length===1?"bet":"bets"}</span>`;
+      const markup=`YOUR OPEN BETS · ${fmt(total)} <span>${matching.length} ${matching.length===1?"bet":"bets"}</span>`;
+      if(!badge){
+        badge=document.createElement("div");
+        badge.className="match-open-stake";
+        badge.innerHTML=markup;
+        date.after(badge);
+      }else if(badge.innerHTML!==markup){
+        badge.innerHTML=markup;
+      }
     });
   }
 
@@ -145,6 +152,6 @@
   const history=document.getElementById("history");
   if(history) observer.observe(history,{childList:true,subtree:true});
   const marketsEl=document.getElementById("markets");
-  if(marketsEl) observer.observe(marketsEl,{childList:true,subtree:true});
+  if(marketsEl) observer.observe(marketsEl,{childList:true,subtree:false});
   refreshEnhancements();
 })();
