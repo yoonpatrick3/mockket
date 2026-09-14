@@ -1,5 +1,37 @@
 # MOCKKET
 
+## Expeditions: the first roguelike mode
+
+Keep your bankroll alive across four stages: The Opening, The Climb, High Stakes,
+and The Final. Win 12 distinct markets to complete an expedition. A winning pick
+must have a stake of at least $25 to count; repeat wins on a market count once.
+Existing balances and bets are preserved, and expedition progress starts with new
+picks placed after the update.
+
+At 3, 6, and 9 wins, choose one of three randomly drafted upgrades. Drafts are
+stable per run and cannot be rerolled by refreshing. Relics stack additively and
+boost the profit portion of future winning picks. The Supply Cache instead grants
+$150 immediately. Payouts including relic bonuses are locked at placement, and
+existing open picks are never repriced. Supply grants are separate from betting P/L.
+
+At $0 with no open picks or unclaimed rewards, the run ends. After defeat or a
+12-win victory, resolve all pending picks and claim rewards before restarting
+with $1,000. Upgrades reset; the expedition log preserves the result, win count,
+build, and ending bankroll. The original Run History still holds archived bets.
+Matches continue to resolve on their real-world schedule.
+
+`npm start` automatically runs the additive, idempotent `roguelike-schema.sql`
+migration after the existing run-history migration. It adds `rogue_runs` and two
+bet columns without resetting existing data. Deploy the migration and code together.
+
+Run `npm test` for rules, PostgreSQL migration/archive checks using PGlite, and an
+isolated HTTP smoke test of registration, reward claims, payouts, settlement, death,
+and victory. The tests use an in-memory database and stub market data. They do not
+connect to the production database. For a visual preview, run
+`node tests/local-server.js` and sign in at `http://localhost:4173` as
+`expedition_demo` / `local-only-pass`. These credentials exist only in that local
+test process. The market feed is intentionally stubbed in this preview.
+
 **Put your money where your mouth isn't.**
 
 Live esports markets. Fake money. Real bragging rights.

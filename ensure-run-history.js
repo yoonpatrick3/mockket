@@ -326,6 +326,7 @@ COMMIT;
 (async () => {
   try {
     await pool.query(sql);
+    await pool.query(require("fs").readFileSync(require("path").join(__dirname, "roguelike-schema.sql"), "utf8"));
     console.log("[MOCKKET] Simulator run-history archive ready.");
   } catch (err) {
     console.error("[MOCKKET] Run-history migration failed:", err);

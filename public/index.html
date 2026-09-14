@@ -368,6 +368,7 @@
   </div>
 </div>
 
+<script src="/rogue-rules.js"></script>
 <script>
 const START = 1000;
 let markets = [];
@@ -408,7 +409,8 @@ function applyAccountState(data){
     user:data.user || state.user || null,
     bankroll:Number(data.bankroll || 0),
     bets:Array.isArray(data.bets) ? data.bets : [],
-    refill:data.refill || null
+    refill:data.refill || null,
+    rogue:data.rogue || null
   };
   document.getElementById("usernameDisplay").textContent=state.user?.username || "—";
   renderStats();
@@ -926,9 +928,9 @@ function renderSlip(){
     <div class="pick-row"><span>Pick</span><b>${esc(selected.outcome)}</b></div>
     <div class="pick-row"><span>Market probability</span><b id="marketProbability">${Math.round(p*100)}%</b></div>
     <input id="stake" class="stake" type="number" min="1" step="1" value="${stakeDraft}" placeholder="Fake stake ($)" oninput="updatePotential()"/>
-    <div class="pick-row"><span>Potential return</span><b id="potential">${fmt(stakeDraft/p)}</b></div>
+    <div class="pick-row"><span>Return incl. relics</span><b id="potential">${fmt(RogueRules.quote(Math.round(stakeDraft*100),p,state.rogue?.picked||[]).total/100)}</b></div>
     <button class="place" onclick="placeFakeBet()">Place simulated pick</button>
-    <div class="notice">Uses simulated dollars only. No real-money wallet, deposit flow, or order-placement API is connected.</div>`;
+    <div class="notice">Stake $25+ to advance your expedition if this market wins. Relic bonuses are locked when your pick is placed. Simulated dollars only.</div>`;
 }
 window.updatePotential = () => {
   if(!selected) return;
@@ -944,7 +946,7 @@ window.updatePotential = () => {
   }
 
   const p=Math.max(.01,Math.min(.99,selected.price));
-  document.getElementById("potential").textContent=fmt(stake/p);
+  document.getElementById("potential").textContent=fmt(RogueRules.quote(Math.round(stake*100),p,state.rogue?.picked||[]).total/100);
 };
 
 function updateSelectedSlipPrice(){
@@ -969,7 +971,7 @@ function updateSelectedSlipPrice(){
 
   const potentialEl=document.getElementById("potential");
   if(potentialEl){
-    potentialEl.textContent=fmt(stake/p);
+    potentialEl.textContent=fmt(RogueRules.quote(Math.round(stake*100),p,state.rogue?.picked||[]).total/100);
   }
 }
 window.placeFakeBet = async () => {

@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { Pool } = require("pg");
+const rogue = require("./roguelike");
 
 if (!process.env.DATABASE_URL) {
   throw new Error("[MOCKKET] Missing DATABASE_URL for game-loop runtime.");
@@ -90,10 +91,11 @@ http.createServer = function gameLoopCreateServer(handler) {
           }
 
           const balance = Number(lockedUser.rows[0].balance_cents || 0);
-          if (balance !== 0) {
+          const runState = await rogue.runState(client, Number(user.id), balance);
+          if (!runState.canRestart) {
             await client.query("ROLLBACK");
             return sendJson(res, 409, {
-              error: "You can only start a new run after your balance reaches $0."
+              error: "Finish your run, claim all rewards, and wait for pending picks before starting again."
             });
           }
 
@@ -113,6 +115,7 @@ http.createServer = function gameLoopCreateServer(handler) {
 
           // These DELETEs are intercepted by the run-history DB triggers,
           // which archive every bet/refill before clearing the visible run.
+          await rogue.finishRun(client, Number(user.id), runState, balance, runState.victory ? "VICTORY" : "ELIMINATED");
           await client.query("DELETE FROM bets WHERE user_id=$1", [Number(user.id)]);
           await client.query("DELETE FROM daily_refills WHERE user_id=$1", [Number(user.id)]);
 
@@ -152,7 +155,7 @@ fs.readFile = function gameLoopReadFile(filePath, ...args) {
   const wrapped = (err, data) => {
     if (!err && String(filePath).endsWith(path.join("public", "index.html"))) {
       const original = Buffer.isBuffer(data) ? data.toString("utf8") : String(data);
-      const tag = '<script src="/game-loop-ui.js"></script>';
+      const tag = '<script src="/rogue-ui.js"></script>';
       if (!original.includes(tag)) {
         data = Buffer.from(original.replace("</body>", `${tag}\n</body>`), "utf8");
       }

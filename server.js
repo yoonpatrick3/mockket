@@ -6,6 +6,7 @@ const { URL } = require("url");
 const crypto = require("crypto");
 const { promisify } = require("util");
 const { Pool } = require("pg");
+const rogue = require("./roguelike");
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -226,6 +227,7 @@ function dbBetToClient(row) {
     entryPrice: Number(row.entry_price),
     stake: Number(row.stake_cents) / 100,
     potential: Number(row.potential_cents) / 100,
+    relicBonus: Number(row.relic_bonus_cents || 0) / 100,
     status: row.status,
     pnl: Number(row.pnl_cents) / 100,
     placedAt: row.placed_at,
@@ -286,6 +288,7 @@ async function accountStateForUser(userId) {
       createdAt: user.created_at
     },
     bankroll: balanceCents / 100,
+    rogue: await rogue.runState(pool, userId, balanceCents),
     bets: betsResult.rows.map(dbBetToClient),
     refill: {
       amount: DAILY_REFILL_CENTS / 100,
@@ -1291,6 +1294,31 @@ const server = http.createServer(async (req, res) => {
       );
     }
 
+    if (url.pathname === "/api/rogue/reward" && req.method === "POST") {
+      const user = await requireUser(req, res);
+      if (!user) return;
+      const body = await readJsonBody(req);
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await rogue.chooseReward(client, Number(user.id), body);
+        await client.query("COMMIT");
+      } catch (err) {
+        await client.query("ROLLBACK");
+        if (err.status) return json(res, err.status, { error: err.message });
+        throw err;
+      } finally { client.release(); }
+      return json(res, 200, await accountStateForUser(Number(user.id)));
+    }
+
+    if (url.pathname === "/api/rogue/history" && req.method === "GET") {
+      const user = await requireUser(req, res);
+      if (!user) return;
+      const r = await pool.query(`SELECT id,result,wins,picked,ended_at,ending_balance_cents
+        FROM rogue_runs WHERE user_id=$1 AND ended_at IS NOT NULL ORDER BY ended_at DESC LIMIT 20`, [Number(user.id)]);
+      return json(res, 200, { runs: r.rows });
+    }
+
     if (url.pathname === "/api/bets" && req.method === "POST") {
       const user = await requireUser(req, res);
       if (!user) return;
@@ -1339,9 +1367,12 @@ const server = http.createServer(async (req, res) => {
       }
 
       const stakeCents = Math.round(stake * 100);
-      const potentialCents = Math.round(
+      let potentialCents = Math.round(
         stakeCents / entryPrice
       );
+      if (!Number.isSafeInteger(stakeCents) || stakeCents < 1 || !Number.isSafeInteger(potentialCents)) {
+        return json(res, 400, { error: "Enter a valid stake of at least $0.01." });
+      }
 
       const betId = crypto.randomUUID();
       const now = new Date().toISOString();
@@ -1350,6 +1381,20 @@ const server = http.createServer(async (req, res) => {
 
       try {
         await client.query("BEGIN");
+
+        const locked = await client.query("SELECT balance_cents FROM users WHERE id=$1 FOR UPDATE", [Number(user.id)]);
+        const run = await rogue.ensureRun(client, Number(user.id));
+        const runStatus = await rogue.runState(client, Number(user.id), locked.rows[0].balance_cents, run);
+        if (runStatus.rewardDue || runStatus.victory) {
+          await client.query("ROLLBACK");
+          return json(res, 409, { error: runStatus.rewardDue ? "Choose your stage reward before placing another pick." : "Run complete! Wait for pending picks, then start a new run." });
+        }
+        const payout = rogue.rules.quote(stakeCents, entryPrice, run.picked);
+        potentialCents = payout.total;
+        if (!Number.isSafeInteger(potentialCents)) {
+          await client.query("ROLLBACK");
+          return json(res, 400, { error: "This payout exceeds the supported limit." });
+        }
 
         const debit = await client.query(`
           UPDATE users
@@ -1388,11 +1433,13 @@ const server = http.createServer(async (req, res) => {
             potential_cents,
             status,
             pnl_cents,
-            placed_at
+            placed_at,
+            rogue_run_id,
+            relic_bonus_cents
           )
           VALUES(
             $1,$2,$3,$4,$5,$6,$7,$8,$9,
-            $10,$11,$12::jsonb,$13,$14,$15,$16,$17,$18
+            $10,$11,$12::jsonb,$13,$14,$15,$16,$17,$18,$19,$20
           )
         `, [
           betId,
@@ -1412,7 +1459,9 @@ const server = http.createServer(async (req, res) => {
           potentialCents,
           "OPEN",
           0,
-          now
+          now,
+          run.id,
+          payout.bonus
         ]);
 
         await client.query("COMMIT");
@@ -1811,6 +1860,9 @@ const server = http.createServer(async (req, res) => {
       try {
         await client.query("BEGIN");
 
+        const resetUser = await client.query("SELECT balance_cents FROM users WHERE id=$1 FOR UPDATE", [Number(user.id)]);
+        const resetRun = await rogue.runState(client, Number(user.id), resetUser.rows[0].balance_cents);
+        await rogue.finishRun(client, Number(user.id), resetRun, resetUser.rows[0].balance_cents, "RESET");
         await client.query(
           "DELETE FROM bets WHERE user_id=$1",
           [Number(user.id)]
