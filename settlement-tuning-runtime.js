@@ -59,6 +59,11 @@ Module._extensions[".js"] = function(module, filename) {
     '          run.id,\n          payout.bonus,\n          Number(locked.rows[0].balance_cents)\n        ]);'
   );
 
+  source = source.replace(
+    'Choose your stage reward before placing another pick.',
+    'Visit or leave the merchant before placing another pick.'
+  );
+
   module._compile(source, filename);
 };
 
