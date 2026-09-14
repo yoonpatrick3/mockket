@@ -1,6 +1,7 @@
 // Runtime patch for settlement timing. Keeps series/match winner behavior unchanged,
 // but lets individual Game/Map winner markets settle quickly enough for players
-// to reuse bankroll on the next game in the series.
+// to reuse bankroll on the next game in the series. It also captures bankroll at
+// placement so roguelike Merchant Progress can use percentage risk instead of raw dollars.
 const Module = require("module");
 const fs = require("fs");
 
@@ -43,7 +44,22 @@ Module._extensions[".js"] = function(module, filename) {
     '`${isIndividualGameWinnerMarket(market) ? "1 minute" : "5 minutes"} unchanged at ${signature}.`'
   );
 
+  // Add the bankroll snapshot used by Merchant Progress without rewriting the
+  // large legacy server file. The migration adds this nullable column first.
+  source = source.replace(
+    '            rogue_run_id,\n            relic_bonus_cents\n          )',
+    '            rogue_run_id,\n            relic_bonus_cents,\n            bankroll_before_cents\n          )'
+  );
+  source = source.replace(
+    '            $10,$11,$12::jsonb,$13,$14,$15,$16,$17,$18,$19,$20\n          )',
+    '            $10,$11,$12::jsonb,$13,$14,$15,$16,$17,$18,$19,$20,$21\n          )'
+  );
+  source = source.replace(
+    '          run.id,\n          payout.bonus\n        ]);',
+    '          run.id,\n          payout.bonus,\n          Number(locked.rows[0].balance_cents)\n        ]);'
+  );
+
   module._compile(source, filename);
 };
 
-console.log("[MOCKKET] Individual game settlement tuning enabled (100/0 stable for 1 minute).");
+console.log("[MOCKKET] Individual game settlement tuning + merchant exposure tracking enabled.");
