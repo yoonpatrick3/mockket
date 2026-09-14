@@ -7,10 +7,19 @@ CREATE TABLE IF NOT EXISTS rogue_runs (
   picked JSONB NOT NULL DEFAULT '[]'::jsonb,
   result TEXT CHECK (result IN ('VICTORY', 'ELIMINATED', 'RESET')),
   wins INTEGER NOT NULL DEFAULT 0,
-  ending_balance_cents BIGINT
+  ending_balance_cents BIGINT,
+  shop_progress INTEGER NOT NULL DEFAULT 0,
+  shop_index INTEGER NOT NULL DEFAULT 0,
+  shop_open BOOLEAN NOT NULL DEFAULT FALSE
 );
+ALTER TABLE rogue_runs ADD COLUMN IF NOT EXISTS shop_progress INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE rogue_runs ADD COLUMN IF NOT EXISTS shop_index INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE rogue_runs ADD COLUMN IF NOT EXISTS shop_open BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE UNIQUE INDEX IF NOT EXISTS rogue_runs_active_user ON rogue_runs(user_id) WHERE ended_at IS NULL;
+
 ALTER TABLE bets ADD COLUMN IF NOT EXISTS rogue_run_id UUID REFERENCES rogue_runs(id);
 ALTER TABLE bets ADD COLUMN IF NOT EXISTS relic_bonus_cents BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE bets ADD COLUMN IF NOT EXISTS rogue_progress_applied BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE bets ADD COLUMN IF NOT EXISTS bankroll_before_cents BIGINT;
 CREATE INDEX IF NOT EXISTS bets_rogue_run ON bets(rogue_run_id);
 COMMIT;
