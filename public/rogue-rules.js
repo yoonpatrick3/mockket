@@ -6,12 +6,12 @@
   const LOSS_PROGRESS_MULTIPLIER = 1.25;
 
   const upgrades = [
-    { id: "lens", name: "Compound Lens", kind: "RELIC", cost: 125, description: "+10% profit on every future winning pick." },
-    { id: "longshot", name: "Longshot Charm", kind: "RELIC", cost: 90, description: "+25% profit on future wins priced below 40%." },
-    { id: "anchor", name: "Anchor Sigil", kind: "RELIC", cost: 90, description: "+20% profit on future wins priced at 60% or higher." },
-    { id: "momentum", name: "Heavy Hand", kind: "RELIC", cost: 110, description: "+20% profit on future wins with a stake of $100 or more." },
-    { id: "closer", name: "Closer's Edge", kind: "RELIC", cost: 75, description: "+15% profit on future wins priced from 45% to 55%." },
-    { id: "whale", name: "Whale Tooth", kind: "RELIC", cost: 150, description: "+25% profit on future wins with a stake of $250 or more." }
+    { id: "lens", name: "Compound Lens", kind: "RELIC", cost: 125, bonusLabel: "+10%", trigger: "Every winning pick", description: "+10% profit on every future winning pick." },
+    { id: "longshot", name: "Longshot Charm", kind: "RELIC", cost: 90, bonusLabel: "+25%", trigger: "Pick priced below 40%", description: "+25% profit on future wins priced below 40%." },
+    { id: "anchor", name: "Anchor Sigil", kind: "RELIC", cost: 90, bonusLabel: "+20%", trigger: "Pick priced at 60%+", description: "+20% profit on future wins priced at 60% or higher." },
+    { id: "momentum", name: "Heavy Hand", kind: "RELIC", cost: 110, bonusLabel: "+20%", trigger: "Stake $100+", description: "+20% profit on future wins with a stake of $100 or more." },
+    { id: "closer", name: "Closer's Edge", kind: "RELIC", cost: 75, bonusLabel: "+15%", trigger: "Pick priced 45%–55%", description: "+15% profit on future wins priced from 45% to 55%." },
+    { id: "whale", name: "Whale Tooth", kind: "RELIC", cost: 150, bonusLabel: "+25%", trigger: "Stake $250+", description: "+25% profit on future wins with a stake of $250 or more." }
   ];
 
   function choices(seed, index) {
@@ -26,21 +26,38 @@
     return deck.slice(0, 3);
   }
 
+  function relicApplies(id, stakeCents, price) {
+    if (!Number.isFinite(price) || price <= 0 || price >= 1) return false;
+    if (id === "lens") return true;
+    if (id === "longshot") return price < .4;
+    if (id === "anchor") return price >= .6;
+    if (id === "momentum") return stakeCents >= 10000;
+    if (id === "closer") return price >= .45 && price <= .55;
+    if (id === "whale") return stakeCents >= 25000;
+    return false;
+  }
+
+  function effectRate(stakeCents, price, picked = []) {
+    return picked.reduce((rate, id) => {
+      if (!relicApplies(id, stakeCents, price)) return rate;
+      if (id === "lens") return rate + 10;
+      if (id === "longshot") return rate + 25;
+      if (id === "anchor") return rate + 20;
+      if (id === "momentum") return rate + 20;
+      if (id === "closer") return rate + 15;
+      if (id === "whale") return rate + 25;
+      return rate;
+    }, 0);
+  }
+
   function quote(stakeCents, price, picked = []) {
     if (!Number.isSafeInteger(stakeCents) || stakeCents < 1 || !Number.isFinite(price) || price <= 0 || price >= 1) {
       return { total: 0, bonus: 0 };
     }
     const base = Math.round(stakeCents / price);
-    const rate = picked.reduce((n, id) => n + (
-      id === "lens" ? 10 :
-      id === "longshot" && price < .4 ? 25 :
-      id === "anchor" && price >= .6 ? 20 :
-      id === "momentum" && stakeCents >= 10000 ? 20 :
-      id === "closer" && price >= .45 && price <= .55 ? 15 :
-      id === "whale" && stakeCents >= 25000 ? 25 : 0
-    ), 0);
+    const rate = effectRate(stakeCents, price, picked);
     const bonus = Math.round(Math.max(0, base - stakeCents) * rate / 100);
-    return { total: base + bonus, bonus };
+    return { total: base + bonus, bonus, rate };
   }
 
   function progressContribution(stakeCents, bankrollBeforeCents, status) {
@@ -76,6 +93,8 @@
     upgrades,
     choices,
     quote,
+    effectRate,
+    relicApplies,
     progress,
     progressContribution,
     SHOP_THRESHOLD,
