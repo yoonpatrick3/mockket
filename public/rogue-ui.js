@@ -26,6 +26,10 @@
 
     panel.hidden = false;
     const relics = (r.picked || []).map(id => RogueRules.upgrades.find(u => u.id === id)).filter(Boolean);
+    const selectedStakeCents = Math.max(0, Math.round(Number(stakeDraft || 0) * 100));
+    const selectedPrice = Number(selected?.price);
+    const hasSelectedPick = Boolean(selected && Number.isFinite(selectedPrice));
+    const activeRate = hasSelectedPick ? RogueRules.effectRate(selectedStakeCents, selectedPrice, r.picked || []) : 0;
     const threshold = Number(r.shopThreshold || RogueRules.SHOP_THRESHOLD || 60);
     const progress = Math.min(threshold, Number(r.shopProgress || 0));
     const remaining = Math.max(0, threshold - progress);
@@ -108,10 +112,32 @@
 
       <div class="rogue-inventory">
         <span class="rogue-eyebrow">YOUR BUILD</span>
-        <div>${relics.length
-          ? relics.map(u => `<span class="rogue-relic" title="${u.description}">${u.name}</span>`).join("")
+        <div class="rogue-relic-list">${relics.length
+          ? relics.map(u => {
+              const active = hasSelectedPick && RogueRules.relicApplies(u.id, selectedStakeCents, selectedPrice);
+              return `<button type="button" class="rogue-relic ${hasSelectedPick ? (active ? "active-effect" : "inactive-effect") : ""}" aria-label="${esc(u.name)}: ${esc(u.description)}">
+                <span class="rogue-relic-name">${esc(u.name)}</span>
+                <span class="rogue-relic-bonus">${esc(u.bonusLabel || "")}</span>
+                <span class="rogue-relic-tooltip" role="tooltip">
+                  <b>${esc(u.name)}</b>
+                  <span>${esc(u.description)}</span>
+                  <small>Triggers: ${esc(u.trigger || "Future winning picks")}</small>
+                  ${hasSelectedPick ? `<em class="${active ? "on" : "off"}">${active ? "ACTIVE ON CURRENT PICK" : "NOT ACTIVE ON CURRENT PICK"}</em>` : ""}
+                </span>
+              </button>`;
+            }).join("")
           : '<span class="rogue-empty">No relics yet. Resolve meaningful bets to find your first merchant.</span>'}</div>
       </div>
+
+      ${relics.length ? `<div class="rogue-effect-summary ${hasSelectedPick && activeRate > 0 ? "live" : ""}">
+        <span class="rogue-effect-icon">✦</span>
+        <div>
+          <b>${hasSelectedPick ? (activeRate > 0 ? `CURRENT PICK · +${activeRate}% PROFIT` : "CURRENT PICK · NO RELIC BONUS") : "RELIC EFFECTS"}</b>
+          <small>${hasSelectedPick
+            ? (activeRate > 0 ? "Highlighted relics are modifying the profit on this pick." : "None of your current relic conditions match this pick.")
+            : "Choose a market to see which relics activate on that pick."}</small>
+        </div>
+      </div>` : ""}
 
       ${r.canRestart ? `<button class="rogue-restart" type="button" ${busy ? "disabled" : ""}>${busy ? "Starting…" : "START NEW EXPEDITION · $1,000"}</button>` : ""}
       <div class="rogue-error" role="status">${esc(error)}</div>
@@ -199,6 +225,13 @@
       }).catch(()=>{});
     }
   };
+
+  document.addEventListener("click", () => setTimeout(() => {
+    if (state.user && state.rogue) renderGameState();
+  }, 0), true);
+  document.addEventListener("input", e => {
+    if (e.target?.id === "stake") renderGameState();
+  }, true);
 
   renderGameState();
 })();
