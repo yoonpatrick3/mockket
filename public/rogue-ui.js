@@ -115,13 +115,19 @@
         <div class="rogue-relic-list">${relics.length
           ? relics.map(u => {
               const active = hasSelectedPick && RogueRules.relicApplies(u.id, selectedStakeCents, selectedPrice);
+              const stats = r.relicStats?.[u.id] || { earnedCents: 0, pendingCents: 0, winningPicks: 0, openPicks: 0 };
               return `<button type="button" class="rogue-relic ${hasSelectedPick ? (active ? "active-effect" : "inactive-effect") : ""}" aria-label="${esc(u.name)}: ${esc(u.description)}">
                 <span class="rogue-relic-name">${esc(u.name)}</span>
                 <span class="rogue-relic-bonus">${esc(u.bonusLabel || "")}</span>
+                <span class="rogue-relic-earned-chip">${fmt(stats.earnedCents / 100)} earned</span>
                 <span class="rogue-relic-tooltip" role="tooltip">
                   <b>${esc(u.name)}</b>
                   <span>${esc(u.description)}</span>
                   <small>Triggers: ${esc(u.trigger || "Future winning picks")}</small>
+                  <strong class="rogue-relic-earned">${fmt(stats.earnedCents / 100)} <small>BONUS PROFIT EARNED</small></strong>
+                  <span class="rogue-relic-count">${stats.winningPicks} winning ${stats.winningPicks === 1 ? "pick" : "picks"} boosted</span>
+                  ${stats.openPicks ? `<span class="rogue-relic-pending">${fmt(stats.pendingCents / 100)} possible bonus · ${stats.openPicks} open ${stats.openPicks === 1 ? "pick" : "picks"}</span>` : ""}
+                  <small>Tracked from the relic stats update. Bonuses on earlier picks aren't attributed.</small>
                   ${hasSelectedPick ? `<em class="${active ? "on" : "off"}">${active ? "ACTIVE ON CURRENT PICK" : "NOT ACTIVE ON CURRENT PICK"}</em>` : ""}
                 </span>
               </button>`;
