@@ -64,6 +64,21 @@ Module._extensions[".js"] = function(module, filename) {
     'Visit or leave the merchant before placing another pick.'
   );
 
+  // Freeze each relic's share of the bonus when the bet is placed. Never infer
+  // attribution from the player's current build after a later shop purchase.
+  source = source.replace(
+    '            bankroll_before_cents\\n          )',
+    '            bankroll_before_cents,\\n            relic_effects\\n          )'
+  );
+  source = source.replace(
+    '            $10,$11,$12::jsonb,$13,$14,$15,$16,$17,$18,$19,$20,$21\\n          )',
+    '            $10,$11,$12::jsonb,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22::jsonb\\n          )'
+  );
+  source = source.replace(
+    '          Number(locked.rows[0].balance_cents)\\n        ]);',
+    '          Number(locked.rows[0].balance_cents),\\n          JSON.stringify(rogue.rules.effectBreakdown(stakeCents, entryPrice, run.picked))\\n        ]);'
+  );
+
   module._compile(source, filename);
 };
 
