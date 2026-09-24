@@ -73,6 +73,28 @@ async function runState(db, userId, balanceCents, existing) {
     FROM bets WHERE user_id=$1`, [userId, run.id]);
 
   const picked = asArray(run.picked);
+  // Only bets with a placement-time effect snapshot can be attributed exactly.
+  // Older aggregate relic bonuses are deliberately not guessed or redistributed.
+  const effectsResult = await db.query(`SELECT status, relic_effects
+    FROM bets WHERE user_id=$1 AND rogue_run_id=$2
+      AND relic_effects <> '{}'::jsonb`, [userId, run.id]);
+  const relicStats = {};
+  for (const id of picked) {
+    relicStats[id] = { earnedCents: 0, pendingCents: 0, winningPicks: 0, openPicks: 0 };
+  }
+  for (const bet of effectsResult.rows) {
+    const effects = bet.relic_effects || {};
+    for (const [id, cents] of Object.entries(effects)) {
+      if (!relicStats[id]) continue;
+      if (bet.status === "WON") {
+        relicStats[id].earnedCents += Number(cents) || 0;
+        relicStats[id].winningPicks++;
+      } else if (bet.status === "OPEN") {
+        relicStats[id].pendingCents += Number(cents) || 0;
+        relicStats[id].openPicks++;
+      }
+    }
+  }
   const p = rules.progress({
     shopProgress: Number(run.shop_progress || 0),
     shopIndex: Number(run.shop_index || 0),
@@ -86,6 +108,7 @@ async function runState(db, userId, balanceCents, existing) {
     id: run.id,
     ...p,
     picked,
+    relicStats,
     choices: p.shopOpen ? rules.choices(run.id, p.shopIndex) : []
   };
 }
