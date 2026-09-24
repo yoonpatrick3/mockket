@@ -60,6 +60,22 @@
     return { total: base + bonus, bonus, rate };
   }
 
+  function effectBreakdown(stakeCents, price, picked = []) {
+    const active = picked.filter(id => relicApplies(id, stakeCents, price));
+    const totalRate = effectRate(stakeCents, price, picked);
+    const bonus = quote(stakeCents, price, picked).bonus;
+    if (!totalRate || !bonus) return {};
+    const out = {};
+    let allocated = 0;
+    active.forEach((id, i) => {
+      const rate = effectRate(stakeCents, price, [id]);
+      const share = i === active.length - 1 ? bonus - allocated : Math.floor(bonus * rate / totalRate);
+      out[id] = (out[id] || 0) + share;
+      allocated += share;
+    });
+    return out;
+  }
+
   function progressContribution(stakeCents, bankrollBeforeCents, status) {
     const bankroll = Math.max(Number(bankrollBeforeCents) || 0, Number(stakeCents) || 0, 1);
     const exposurePct = Math.min(25, Math.max(0, Number(stakeCents) / bankroll * 100));
@@ -94,6 +110,7 @@
     choices,
     quote,
     effectRate,
+    effectBreakdown,
     relicApplies,
     progress,
     progressContribution,
