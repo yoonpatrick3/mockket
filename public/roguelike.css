@@ -24,3 +24,9 @@
 .rogue-effect-icon{font-size:18px;color:#819079}.rogue-effect-summary.live .rogue-effect-icon{color:#c5ed9e;text-shadow:0 0 12px #c5ed9e66}
 .rogue-effect-summary b{display:block;font-size:10px;letter-spacing:.06em}.rogue-effect-summary small{display:block;margin-top:3px;color:#8e9b8d;font-size:10px}
 @media(max-width:650px){.rogue-effect-summary{margin-left:0}.rogue-relic-tooltip{position:fixed;left:16px;right:16px;bottom:18px;width:auto}.rogue-relic-tooltip:after{display:none}}
+
+.rogue-relic-earned-chip{font-size:9px;color:#e4f7cc;border-left:1px solid #536344;padding-left:7px;font-weight:700}
+.rogue-relic-tooltip .rogue-relic-earned{display:block;font-size:21px;color:#c5ed9e;line-height:1.2;margin-top:7px}
+.rogue-relic-tooltip .rogue-relic-earned small{display:block;margin-top:4px;font-size:8px;letter-spacing:.08em;color:#a9b99c}
+.rogue-relic-tooltip .rogue-relic-count{color:#d2e2ca;font-size:10px}
+.rogue-relic-tooltip .rogue-relic-pending{color:#e6d291;font-size:10px}
