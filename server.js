@@ -1385,9 +1385,9 @@ const server = http.createServer(async (req, res) => {
         const locked = await client.query("SELECT balance_cents FROM users WHERE id=$1 FOR UPDATE", [Number(user.id)]);
         const run = await rogue.ensureRun(client, Number(user.id));
         const runStatus = await rogue.runState(client, Number(user.id), locked.rows[0].balance_cents, run);
-        if (runStatus.rewardDue || runStatus.victory) {
+        if (runStatus.rewardDue) {
           await client.query("ROLLBACK");
-          return json(res, 409, { error: runStatus.rewardDue ? "Choose your stage reward before placing another pick." : "Run complete! Wait for pending picks, then start a new run." });
+          return json(res, 409, { error: "Visit or leave the merchant before placing another pick." });
         }
         const payout = rogue.rules.quote(stakeCents, entryPrice, run.picked);
         potentialCents = payout.total;
