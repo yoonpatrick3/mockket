@@ -42,7 +42,7 @@ async function syncMerchantProgress(db, userId, existingRun) {
 
     // Once a merchant is waiting, additional resolutions do not bank progress.
     // This prevents a pile of tiny/pending bets from chaining multiple shops.
-    if (shopOpen || shopIndex >= 4) continue;
+    if (shopOpen) continue;
 
     progress = Math.min(
       rules.SHOP_THRESHOLD,
