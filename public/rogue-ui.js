@@ -34,7 +34,7 @@
     const progress = Math.min(threshold, Number(r.shopProgress || 0));
     const remaining = Math.max(0, threshold - progress);
     const title = r.victory
-      ? "You survived the expedition."
+      ? "Expedition continues."
       : r.dead
         ? "The bankroll is gone."
         : r.shopOpen
@@ -42,7 +42,7 @@
           : "Risk money. Build an edge.";
 
     const subtitle = r.victory
-      ? "Four merchants survived. One bankroll. Your build made it to the end."
+      ? "Keep betting until your bankroll runs out."
       : r.dead
         ? "No bankroll and no open picks remain. Archive the run and start again."
         : r.shopOpen
@@ -57,29 +57,27 @@
           <p>${subtitle}</p>
         </div>
         <div class="rogue-score">
-          <strong>${r.victory ? "4" : progress}<small> / ${r.victory ? "4" : threshold}</small></strong>
-          <span>${r.victory ? "ACTS CLEARED" : "MERCHANT PROGRESS"}</span>
+          <strong>${progress}<small> / ${threshold}</small></strong>
+          <span>MERCHANT PROGRESS</span>
         </div>
       </div>
 
       <ol class="rogue-path">
         ${RogueRules.stages.map((name, i) => `
-          <li class="${r.cleared > i ? "cleared" : r.stage === i + 1 && !r.victory ? "current" : ""}" ${!r.victory && r.stage === i + 1 ? 'aria-current="step"' : ""}>
-            <span class="rogue-node">${r.cleared > i ? "&#10003;" : String(i + 1).padStart(2,"0")}</span>
-            <div><b>${name}</b><small>${i === 3 ? "FINAL MERCHANT · VICTORY" : "MERCHANT CHECKPOINT"}</small></div>
+          <li class="${(r.cleared % 4) > i ? "cleared" : r.stage === i + 1 ? "current" : ""}" ${r.stage === i + 1 ? 'aria-current="step"' : ""}>
+            <span class="rogue-node">${(r.cleared % 4) > i ? "&#10003;" : String(i + 1).padStart(2,"0")}</span>
+            <div><b>${name}</b><small>${i === 3 ? "FOURTH MERCHANT · LOOP REPEATS" : "MERCHANT CHECKPOINT"}</small></div>
           </li>`).join("")}
       </ol>
 
       <div class="rogue-progress" role="progressbar" aria-label="Merchant progress" aria-valuemin="0" aria-valuemax="${threshold}" aria-valuenow="${progress}">
-        <span style="width:${r.victory ? 100 : Math.min(100, progress / threshold * 100)}%"></span>
+        <span style="width:${Math.min(100, progress / threshold * 100)}%"></span>
       </div>
 
       <div class="rogue-status">
         <span>${r.shopOpen
           ? "MERCHANT READY · Further bet resolutions will not bank progress until you leave the shop."
-          : r.victory
-            ? (r.pending ? `${r.pending} open picks must resolve before your next expedition.` : "VICTORY · Ready for another expedition.")
-            : r.dead
+          : r.dead
               ? "ELIMINATED · Your expedition will be saved when you restart."
               : `${remaining} progress to the next merchant · losses earn 1.25× progress.`}</span>
         <span>${r.pending} OPEN PICKS</span>
@@ -91,7 +89,7 @@
         <div class="rogue-draft">
           <div class="rogue-merchant-head">
             <div>
-              <div class="rogue-eyebrow">MERCHANT ${Math.min(4, r.shopIndex + 1)} OF 4</div>
+              <div class="rogue-eyebrow">MERCHANT ${r.shopIndex + 1}</div>
               <h3>Spend HP to strengthen the build.</h3>
               <p>Buy one relic, or walk away with your bankroll untouched. Relics affect future picks only.</p>
             </div>
@@ -153,7 +151,7 @@
           <summary>How expeditions work</summary>
           <p>Resolved bets generate Merchant Progress based on how much bankroll you risked. A bet can contribute at most 25 progress, so one giant all-in cannot instantly chain shops. Tiny bets barely move the meter.</p>
           <p>Winning bets generate normal progress. Losing bets generate 1.25× progress, giving struggling runs a small comeback nudge without refunding losses. Once a merchant is waiting, additional resolutions do not bank progress until you buy something or leave.</p>
-          <p>Each merchant offers three run relics. Buying one permanently spends bankroll, so the same money keeping you alive is also your upgrade currency. You can always skip. Purchases can never reduce you below $1. Clear four merchant checkpoints to win the expedition.</p>
+          <p>Each merchant offers three run relics. Buying one permanently spends bankroll, so the same money keeping you alive is also your upgrade currency. You can always skip. Purchases can never reduce you below $1. Merchants keep appearing as long as you survive. Your run ends only when you have $0 and no open picks.</p>
         </details>
         <button type="button" class="rogue-history-toggle" aria-expanded="${historyOpen}">Expedition log</button>
       </div>
