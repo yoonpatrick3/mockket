@@ -1,7 +1,7 @@
 (function(root) {
   "use strict";
 
-  const stages = ["The Opening", "The Climb", "High Stakes", "The Final"];
+  const stages = ["The Opening", "The Climb", "High Stakes", "The Deep End"];
   const SHOP_THRESHOLD = 60;
   const LOSS_PROGRESS_MULTIPLIER = 1.25;
 
