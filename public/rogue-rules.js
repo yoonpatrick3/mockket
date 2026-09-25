@@ -84,13 +84,13 @@
   }
 
   function progress({ shopProgress = 0, shopIndex = 0, shopOpen = false, balanceCents = 0, pending = 0, wins = 0 }) {
-    const completed = Math.min(4, Number(shopIndex) || 0);
-    const victory = completed >= 4 && !shopOpen;
-    const dead = Number(balanceCents) === 0 && Number(pending) === 0 && !shopOpen && !victory;
+    const completed = Math.max(0, Number(shopIndex) || 0);
+    const victory = false; // Endless expedition: checkpoints are not an end condition.
+    const dead = Number(balanceCents) === 0 && Number(pending) === 0 && !shopOpen;
     return {
       wins: Number(wins) || 0,
       cleared: completed,
-      stage: Math.min(4, completed + 1),
+      stage: (completed % stages.length) + 1,
       shopIndex: Number(shopIndex) || 0,
       rewardIndex: Number(shopIndex) || 0,
       shopProgress: Math.min(SHOP_THRESHOLD, Math.max(0, Number(shopProgress) || 0)),
@@ -100,7 +100,7 @@
       victory,
       dead,
       pending: Number(pending) || 0,
-      canRestart: Number(pending) === 0 && !shopOpen && (victory || dead)
+      canRestart: dead
     };
   }
 
