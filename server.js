@@ -837,8 +837,7 @@ async function getMarkets(gameKey = "lol") {
       return match.active && !match.closed && (now - start) <= liveLookbackMs;
     })
 
-    // For League of Legends, only Tier 1 domestic leagues for now.
-    // International events can be added explicitly when one is active.
+    // For League of Legends, keep the main Tier 1 leagues plus explicitly supported events.
     .filter(match => {
       if (gameKey !== "lol") return true;
 
@@ -848,7 +847,8 @@ async function getMarkets(gameKey = "lol") {
         c === "LPL" || c.startsWith("LPL ") ||
         c === "LCK" || c.startsWith("LCK ") ||
         c === "LEC" || c.startsWith("LEC ") ||
-        c === "LCS" || c.startsWith("LCS ")
+        c === "LCS" || c.startsWith("LCS ") ||
+        c === "DEMACIA CUP" || c.startsWith("DEMACIA CUP ")
       ) &&
       !c.includes("CHALLENGERS") &&
       !c.includes("ACADEMY");
