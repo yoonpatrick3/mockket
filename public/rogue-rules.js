@@ -86,8 +86,7 @@
   function progress({ shopProgress = 0, shopIndex = 0, shopOpen = false, balanceCents = 0, pending = 0, wins = 0 }) {
     const completed = Math.max(0, Number(shopIndex) || 0);
     const victory = false; // Endless expedition: checkpoints are not an end condition.
-    const dead = Number(balanceCents) === 0 && Number(pending) === 0 && !shopOpen;
-    return {
+    // Bust always wins over a waiting merchant. A final losing bet can fill the\n    // merchant meter at the same moment the bankroll hits $0; that shop must not\n    // keep a dead run alive. Relic/potential bonuses are not spendable bankroll.\n    const dead = Number(balanceCents) === 0 && Number(pending) === 0;\n    const effectiveShopOpen = Boolean(shopOpen) && !dead;\n    return {
       wins: Number(wins) || 0,
       cleared: completed,
       stage: (completed % stages.length) + 1,
@@ -95,8 +94,7 @@
       rewardIndex: Number(shopIndex) || 0,
       shopProgress: Math.min(SHOP_THRESHOLD, Math.max(0, Number(shopProgress) || 0)),
       shopThreshold: SHOP_THRESHOLD,
-      shopOpen: Boolean(shopOpen),
-      rewardDue: Boolean(shopOpen),
+      shopOpen: effectiveShopOpen,\n      rewardDue: effectiveShopOpen,
       victory,
       dead,
       pending: Number(pending) || 0,
